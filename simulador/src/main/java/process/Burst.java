@@ -1,4 +1,4 @@
-package proccess;
+package process;
 
 public class Burst {
     private String resource; //CPU O E/S
