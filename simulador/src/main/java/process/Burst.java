@@ -1,22 +1,40 @@
 package process;
 
 public class Burst {
-    private String resource; //CPU O E/S
-    private int time; //Tiempo de la rafaga
-    public Burst (String resource, int time){
+    private final BurstResource resource; //CPU O E/S
+    private final int time_total; //Tiempo de la rafaga
+    private int time_remaining; //Tiempo que le falta para terminar la rafaga, útil en Round Robin
+    
+    public Burst (BurstResource resource, int time){
         this.resource = resource;
-        this.time = time;
+        this.time_total = time;
+        this.time_remaining = time;
     }
-    public void setTime(int time){
-        this.time = time;
+
+    //Métodos útiles para poder controlar los burst
+    public boolean isValid(){
+        return time_total > 0;
     }
-    public void setResource(String resource){
-        this.resource = resource;
+
+    public void consumirUnidad(){
+        if (time_remaining > 0) time_remaining--;
     }
-    public int getTime(){
-        return this.time;
+
+    public boolean isFinished(){
+        return time_remaining == 0;
     }
-    public String getResource(){
-        return this.resource;
+
+    //Getters
+    public BurstResource getResource() {
+        return resource;
     }
+
+    public int getTime_total() {
+        return time_total;
+    }
+
+    public int getTime_remaining() {
+        return time_remaining;
+    }
+
 }

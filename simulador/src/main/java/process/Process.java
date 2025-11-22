@@ -1,22 +1,97 @@
 package process;
 import java.util.ArrayList;
+
 public class Process {
     // Atributos
-    private int PID; //PID del proceso
-    private int llegada; //Segundo en el que llega el proceso
-    private ArrayList <Burst> rafagas; //Lista de las rafagas que tiene el proceso
-    private int paginasNecesarias; //Páginas de memoria virtual que necesita el proceso
-    private String estado; //Estado en el que se encuentra el proceso (Nuevo, Listo, Ejecutando, Bloqueado (por memoria o E/S), Terminado)
-    private int ind_rafaga; //Indice de rafaga actual
-    private int t_espera;
-    private int t_retorno;
-    private int t_ejecución;
+    private String PID; //PID del proceso
+    private int t_arrival; //Segundo en el que llega el proceso
+    private ArrayList <Burst> bursts; //Lista de las rafagas que tiene el proceso
+    private int pages; //Páginas de memoria virtual que necesita el proceso
+    private ProcessState state; //Estado en el que se encuentra el proceso (Nuevo, Listo, Ejecutando, Bloqueado (por memoria o E/S), Terminado)
+    private int ind_burst; //Indice de rafaga actual
+    private int priority; //Prioiridad de un proceso, no todos la usan
+    
+    //Métricas
+    private int t_start = -1;
+    private int t_finish;
+    private int t_wait;
+    private int cpu_usage;
 
-    public Process(int PID, int llegada, int paginasNecesarias, ArrayList<Burst> rafagas) {
+    //Constructores
+    public Process(String PID, ArrayList<Burst> bursts, int pages, int t_arrival) {
         this.PID = PID;
-        this.llegada = llegada;
-        this.paginasNecesarias = paginasNecesarias;
-        this.rafagas = rafagas;
-        this.estado = "Nuevo";
+        this.bursts = bursts;
+        this.pages = pages;
+        this.t_arrival = t_arrival;
+        this.ind_burst = 0;
+        this.state = ProcessState.NEW;
     }
+
+    public Process(String PID, ArrayList<Burst> bursts, int pages, int priority, int t_arrival) {
+        this.PID = PID;
+        this.bursts = bursts;
+        this.pages = pages;
+        this.priority = priority;
+        this.t_arrival = t_arrival;
+        this.ind_burst = 0;
+        this.state = ProcessState.NEW;
+    }
+    
+    //Métodos para la gestión del proceso
+    public Burst getBurst(){
+        return this.bursts.get(this.ind_burst);
+    }
+
+    public void nextBurst(){
+        this.ind_burst++;
+        //Verificamos si terminó el proceso
+        if (isFinished()){
+            this.state = ProcessState.TERMINATED;
+        }
+    }
+
+    public boolean isBurstCPU(){
+        Burst temp = getBurst();
+        return temp.getResource().compareTo(BurstResource.CPU) == 0;
+    }
+
+    public boolean isBurstIO(){
+        Burst temp = getBurst();
+        return temp.getResource().compareTo(BurstResource.IO) == 0;
+    }
+
+    public boolean isFinished(){
+        return this.ind_burst >= bursts.size();
+    }
+
+    //Setters y getters
+
+    public String getPID() {
+        return PID;
+    }
+
+    public int getT_arrival() {
+        return t_arrival;
+    }
+
+    public ArrayList<Burst> getBursts() {
+        return bursts;
+    }
+
+    public int getPages() {
+        return pages;
+    }
+
+    public ProcessState getState() {
+        return state;
+    }
+
+    public int getPriority() {
+        return priority;
+    }
+
+    public void setState(ProcessState state) {
+        this.state = state;
+    }
+
 }
