@@ -33,9 +33,6 @@ public class InputParser {
         for (String proceso : procesos){
             list_process.add(crearProceso(proceso));
         }
-        for (Process temp : list_process){
-            System.out.println(temp);
-        }
     }
 
     private Process crearProceso(String proceso){
