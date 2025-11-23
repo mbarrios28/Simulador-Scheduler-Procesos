@@ -71,4 +71,7 @@ public class InputParser {
         int time = Integer.parseInt(burst.substring(start + 1, end));
         return new Burst(res, time);
     }
+    public ArrayList <Process> get_process(){
+        return this.list_process;
+    }
 }
