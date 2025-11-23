@@ -94,4 +94,25 @@ public class Process {
         this.state = state;
     }
 
+    //toString()
+    @Override
+    public String toString() {
+
+        String resultado = "Proceso {\n" +
+                "  PID: " + PID + "\n" +
+                "  Llegada: " + t_arrival + "\n" +
+                "  Prioridad: " + priority + "\n" +
+                "  Páginas: " + pages + "\n" +
+                "  Ráfagas:\n";
+
+        for (Burst b : bursts) {
+            resultado += "    " + b + "\n";
+        }
+
+        resultado += "}";
+
+        return resultado;
+    }
+
+
 }

@@ -37,4 +37,10 @@ public class Burst {
         return time_remaining;
     }
 
+    //toString
+    @Override
+    public String toString(){
+        return "Recurso: " + this.resource + " Tiempo: " + this.time_total;
+    }
+
 }

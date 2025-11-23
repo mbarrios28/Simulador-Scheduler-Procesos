@@ -4,9 +4,16 @@ import org.junit.Test;
 
 public class InputParserTest {
     @Test
-    public void testObtenerLineas(){
+    public void testObtenerProcesos(){
         InputParser parser = new InputParser("/prueba1.txt");
-        parser.ObtenerLineas();
+        parser.obtenerProcesos();
+    }
+
+    @Test
+    public void testCrearProcesos(){
+        InputParser parser = new InputParser("/prueba1.txt");
+        parser.obtenerProcesos();
+        parser.crearProcesos();
     }
 
 }
