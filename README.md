@@ -99,24 +99,6 @@ memory.ensurePages(process)
 
 ---
 
-# Informe Final
-
-El informe se divide por módulos con autores asignados:
-
-- **Integrante A:** Modelo del proceso, parser, estructura de ráfagas, estados.  
-- **Integrante B:** Planificación CPU, algoritmos, métricas, Gantt.  
-- **Integrante C:** Memoria virtual, reemplazo FIFO/LRU/OPT, fallos de página.  
-- **Integrante D:** Hilos, sincronización, E/S, ejecución concurrente.
-
-El informe explica:
-- diseño del simulador  
-- funcionamiento interno  
-- interacción entre módulos  
-- casos de prueba  
-- análisis del rendimiento  
-
----
-
 # Pruebas principales realizadas
 
 - Validación del parser con múltiples archivos.  
