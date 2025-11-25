@@ -54,8 +54,54 @@ public class MemoryManager {
         // frame solo guarda el processId
         freeFrame.occupy(processId);
 
+        // PageTable guarda toda la informacion (pageNumber + frameNumber)
+        PageTable pageTable = processPageTables.get(processId);
+        pageTable.pageLoaded(pageNumber, freeFrame.getId());
 
+        System.out.println("SUCCESS: Página " + pageNumber + " del proceso " + processId + " cargada en Frame " + freeFrame.getId());
+        return true;
+    }
 
+    // obtener la tabla de páginas de un proceso
+    public PageTable getPageTable(String processId) {
+        return processPageTables.get(processId);
+    }
+
+    // Encontrar qué página está en un frame específico
+    public String findPageInFrame(Frame frame) {
+        if (!frame.isOccupied()) {
+            return "FREE";
+        }
+        
+        PageTable pageTable = processPageTables.get(frame.getProcessId());
+        if (pageTable != null) {
+            Integer pageNumber = pageTable.findPageInFrame(frame.getId());
+            if (pageNumber != null) {
+                return frame.getProcessId() + "-Page" + pageNumber;
+            }
+        }
+        return frame.getProcessId() + "-UNKNOWN";
+    }
+
+    public void printMemoryStatus() {
+        System.out.println("\n=== MEMORY STATUS ===");
+        for (Frame frame : physicalMemory) {
+            if (frame.isOccupied()) {
+                String pageInfo = findPageInFrame(frame);
+                System.out.println("Frame " + frame.getId() + ": " + pageInfo);
+            } else {
+                System.out.println("Frame " + frame.getId() + ": FREE");
+            }
+        }
+        System.out.println("Free frames: " + freeFrames.size());
+    }
+    
+    // Print all page tables
+    public void printAllPageTables() {
+        System.out.println("\n=== ALL PAGE TABLES ===");
+        for (PageTable pageTable : processPageTables.values()) {
+            pageTable.printPageTable();
+        }
     }
 
 }
