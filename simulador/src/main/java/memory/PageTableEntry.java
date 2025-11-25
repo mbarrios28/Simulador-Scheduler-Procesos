@@ -1,32 +1,31 @@
 package memory;
 
 public class PageTableEntry {
-    private int pageNumber; // numero de pagina virtual
-    private int frameNumber; // numero de frame (-1 si está en disco y otro valor si está en memoria)
-    private boolean present; // bit de presencia 
-
+    private int pageNumber;     // pagina virtual que representa
+    private int frameNumber;    // marco físico donde está (-1 si no en RAM)
+    private boolean present;    // está en memoria?
+    
     public PageTableEntry(int pageNumber) {
         this.pageNumber = pageNumber;
-        this.frameNumber = -1; 
+        this.frameNumber = -1;
         this.present = false;
     }
-
+    
     public int getPageNumber() { return pageNumber; }
     public int getFrameNumber() { return frameNumber; }
     public boolean isPresent() { return present; }
-
+    
     public void setFrameNumber(int frameNumber) {
         this.frameNumber = frameNumber;
-        this.present = ( frameNumber != -1); 
+        this.present = (frameNumber != -1);
     }
-
+    
     @Override
     public String toString() {
         if (present) {
-            return String.format("Pagina %d: en memoria (Frame %d)", pageNumber, frameNumber);
+            return String.format("Page %d: IN MEMORY (Frame %d)", pageNumber, frameNumber);
         } else {
-            return String.format("Pagina %d: no está en memoria", pageNumber);
+            return String.format("Page %d: NOT IN MEMORY", pageNumber);
         }
     }
-
 }
