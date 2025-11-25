@@ -1,3 +1,4 @@
 process\InputParserTest.class
 process\ProcessTest.class
+scheduler\SchedulerTest.class
 AppTest.class

@@ -1,6 +1,7 @@
 process\InputParser.class
 process\BurstResource.class
 process\Process.class
+scheduler\Scheduler.class
 App.class
 process\Burst.class
 process\ProcessState.class
