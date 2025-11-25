@@ -18,16 +18,17 @@ public class Process {
     private int cpu_usage;
 
     //Constructores
-    public Process(String PID, ArrayList<Burst> bursts, int pages, int t_arrival) {
+    public Process(String PID, int t_arrival, ArrayList<Burst> bursts, int pages) {
         this.PID = PID;
         this.bursts = bursts;
         this.pages = pages;
         this.t_arrival = t_arrival;
+        this.priority = -1; 
         this.ind_burst = 0;
         this.state = ProcessState.NEW;
     }
 
-    public Process(String PID, ArrayList<Burst> bursts, int pages, int priority, int t_arrival) {
+    public Process(String PID, int t_arrival, ArrayList<Burst> bursts, int priority, int pages) {
         this.PID = PID;
         this.bursts = bursts;
         this.pages = pages;
@@ -47,15 +48,21 @@ public class Process {
         //Verificamos si terminó el proceso
         if (isFinished()){
             this.state = ProcessState.TERMINATED;
+        } else {
+            if (isCurrentBurstCPU()){
+                this.state = ProcessState.READY;
+            } else {
+                this.state = ProcessState.BLOCKED_IO;
+            }
         }
     }
 
-    public boolean isBurstCPU(){
+    public boolean isCurrentBurstCPU(){
         Burst temp = getBurst();
         return temp.getResource().compareTo(BurstResource.CPU) == 0;
     }
 
-    public boolean isBurstIO(){
+    public boolean isCurrentBurstIO(){
         Burst temp = getBurst();
         return temp.getResource().compareTo(BurstResource.IO) == 0;
     }

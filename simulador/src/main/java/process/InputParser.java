@@ -37,16 +37,28 @@ public class InputParser {
 
     private Process crearProceso(String proceso){
         String[] partes = proceso.trim().split("\\s+");
-        String PID = partes[0];
-        String t_arrival_string = partes[1];
-        String rafagas = partes[2];
-        String pages_string = partes[3];
-        String priority_string = partes[4];
-        ArrayList<Burst> bursts = dividirRafagas(rafagas);
-        int t_arrival = Integer.parseInt(t_arrival_string);
-        int pages = Integer.parseInt(pages_string);
-        int priority = Integer.parseInt(priority_string);
-        Process process = new Process(PID, bursts, t_arrival, pages, priority);
+        Process process;
+        if (partes.length < 5){
+            String PID = partes[0];
+            String t_arrival_string = partes[1];
+            String rafagas = partes[2];
+            String pages_string = partes[3];
+            ArrayList<Burst> bursts = dividirRafagas(rafagas);
+            int t_arrival = Integer.parseInt(t_arrival_string);
+            int pages = Integer.parseInt(pages_string);
+            process = new Process(PID, t_arrival, bursts, pages);
+        } else {
+            String PID = partes[0];
+            String t_arrival_string = partes[1];
+            String rafagas = partes[2];
+            String priority_string = partes[3];
+            String pages_string = partes[4];
+            ArrayList<Burst> bursts = dividirRafagas(rafagas);
+            int t_arrival = Integer.parseInt(t_arrival_string);
+            int pages = Integer.parseInt(pages_string);
+            int priority = Integer.parseInt(priority_string);
+            process = new Process(PID, t_arrival, bursts, priority, pages);
+        }
         return process;
     }
 
