@@ -1,6 +1,7 @@
-C:\Users\hp\Desktop\Evidencias\Semestre VI\Sistemas Operativos\Teoría\Proyecto\Simulador-Scheduler-Procesos\simulador\src\main\java\process\BurstResource.java
-C:\Users\hp\Desktop\Evidencias\Semestre VI\Sistemas Operativos\Teoría\Proyecto\Simulador-Scheduler-Procesos\simulador\src\main\java\process\Burst.java
-C:\Users\hp\Desktop\Evidencias\Semestre VI\Sistemas Operativos\Teoría\Proyecto\Simulador-Scheduler-Procesos\simulador\src\main\java\process\InputParser.java
-C:\Users\hp\Desktop\Evidencias\Semestre VI\Sistemas Operativos\Teoría\Proyecto\Simulador-Scheduler-Procesos\simulador\src\main\java\process\ProcessState.java
-C:\Users\hp\Desktop\Evidencias\Semestre VI\Sistemas Operativos\Teoría\Proyecto\Simulador-Scheduler-Procesos\simulador\src\main\java\App.java
-C:\Users\hp\Desktop\Evidencias\Semestre VI\Sistemas Operativos\Teoría\Proyecto\Simulador-Scheduler-Procesos\simulador\src\main\java\process\Process.java
+D:\UNSA\2025_B\SISTEMAS OPERATIVOS\PROYECTO\Simulador-Scheduler-Procesos\simulador\src\main\java\process\Burst.java
+D:\UNSA\2025_B\SISTEMAS OPERATIVOS\PROYECTO\Simulador-Scheduler-Procesos\simulador\src\main\java\App.java
+D:\UNSA\2025_B\SISTEMAS OPERATIVOS\PROYECTO\Simulador-Scheduler-Procesos\simulador\src\main\java\process\InputParser.java
+D:\UNSA\2025_B\SISTEMAS OPERATIVOS\PROYECTO\Simulador-Scheduler-Procesos\simulador\src\main\java\process\ProcessState.java
+D:\UNSA\2025_B\SISTEMAS OPERATIVOS\PROYECTO\Simulador-Scheduler-Procesos\simulador\src\main\java\process\BurstResource.java
+D:\UNSA\2025_B\SISTEMAS OPERATIVOS\PROYECTO\Simulador-Scheduler-Procesos\simulador\src\main\java\scheduler\Scheduler.java
+D:\UNSA\2025_B\SISTEMAS OPERATIVOS\PROYECTO\Simulador-Scheduler-Procesos\simulador\src\main\java\process\Process.java
