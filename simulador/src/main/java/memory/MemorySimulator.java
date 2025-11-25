@@ -27,5 +27,5 @@ public class MemorySimulator {
         System.out.println("P2-Page1 cargada: " + memory.isPageLoaded("P2", 1));
         
         memory.printMemoryStatus();
-¿    }
+    }
 }
