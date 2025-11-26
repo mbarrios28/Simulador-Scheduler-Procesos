@@ -25,16 +25,17 @@ public class FIFO implements ReplacementAlgorithm {
         frameQueue.add(frameId);
     }
 
-    @Override
-    public void onPageAcces(String processId, int pageNumber) {
-        // No se necesita hacer nada para FIFO cuando se accede a una página
+     @Override
+    public void onPageUnloaded(String processId, int pageNumber, int frameId) {
+        // Remover el frame de la cola (debería ser el primero)
+        frameQueue.poll();
     }
 
     @Override
-    public void onPageUnloaded(String processId, int pageNumber) {
-        // No se necesita hacer nada para FIFO cuando se descarga una página
+    public void onPageAccess(String processId, int pageNumber) {
+        // FIFO no necesita saber sobre accesos
     }
-
+  
     @Override
     public String getName() {
         return "FIFO";

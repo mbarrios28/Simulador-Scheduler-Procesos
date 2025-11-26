@@ -1,15 +1,26 @@
 package memory;
-import java.util.List;
-import java.util.Queue;
-import java.util.Map;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+
+import memory.algoritmos.ReplacementAlgorithm;
 
 public class MemoryManager {
     private List<Frame> physicalMemory;
     private Queue<Frame> freeFrames;
     private Map<String, PageTable> processPageTables;
 
-    public MemoryManager(int totalFrames) {
+    private ReplacementAlgorithm replacementAlgorithm;
+
+    // CONTADORES DE ESTADISTICA
+    private Map<String, Integer> pageFaultCount;
+    private Map<String, Integer> replacementCount;
+
+
+
+    public MemoryManager(int totalFrames, ReplacementAlgorithm algorithm) {
         physicalMemory = new ArrayList<>();
         freeFrames = new java.util.LinkedList<>();
         processPageTables = new java.util.HashMap<>();
@@ -18,6 +29,9 @@ public class MemoryManager {
             physicalMemory.add(frame);
             freeFrames.add(frame);
         }
+        this.replacementAlgorithm = algorithm;
+        this.pageFaultCount = new HashMap<>();
+        this.replacementCount = new HashMap<>();
         System.out.println("Memory Manager inicializada con " + totalFrames + " frames.");
     }
 
@@ -39,26 +53,61 @@ public class MemoryManager {
 
     // cargar una pagina a la memoria
     public boolean loadPage(String processId, int pageNumber) {
+        // Si ya está cargado solo notificar acceso
         if ( isPageLoaded(processId, pageNumber) ) {
             System.out.println("Página " + pageNumber + " del proceso " + processId + " ya está en memoria.");
+            replacementAlgorithm.onPageAccess(processId, pageNumber);
             return true;
         }  
+        Frame targetFrame;
+
+        // Incrementar contador de page faults
+        pageFaultCount.put(processId, pageFaultCount.getOrDefault(processId, 0) + 1);
+
         if (freeFrames.isEmpty()) {
-            System.out.println("No hay frames disponibles para " + processId + "-Page" + pageNumber);
-            // Aquí se podría implementar un algoritmo de reemplazo de páginas ...
-            System.out.println("Memoria llena - (aplicar algun algoritmo de reemplazo aquí)");
-            return false;
+
+            // REEMPLAZO 
+            Integer victimFrameId = replacementAlgorithm.chooseVictimFrame(physicalMemory, processPageTables);
+            
+            if (victimFrameId == null) {
+                System.out.println("ERROR: No se pudo elegir víctima para reemplazo");
+                return false;
+            }
+            
+            targetFrame = physicalMemory.get(victimFrameId);
+            // Expulsar la página víctima
+            String victimProcessId = targetFrame.getProcessId();
+            PageTable victimPageTable = processPageTables.get(victimProcessId);
+            Integer victimPageNumber = victimPageTable.findPageInFrame(victimFrameId);
+            System.out.println("REEMPLAZO: Expulsando " + victimProcessId + "-Page" + victimPageNumber + 
+                          " del Frame " + victimFrameId);
+        
+            // Actualizar tabla de páginas de la víctima
+            victimPageTable.pageUnloaded(victimPageNumber);
+            
+            // Notificar al algoritmo
+            replacementAlgorithm.onPageUnloaded(victimProcessId, victimPageNumber, victimFrameId);
+            
+            // Liberar el frame
+            targetFrame.free();
+            
+            // Incrementar contador de reemplazos
+            replacementCount.put(processId, replacementCount.getOrDefault(processId, 0) + 1);
+            
+        } else {
+            targetFrame = freeFrames.poll();
         }
-        Frame freeFrame = freeFrames.poll();
-
-        // frame solo guarda el processId
-        freeFrame.occupy(processId);
-
-        // PageTable guarda toda la informacion (pageNumber + frameNumber)
+       
+        // cargar la nueva página 
+        targetFrame.occupy(processId);
         PageTable pageTable = processPageTables.get(processId);
-        pageTable.pageLoaded(pageNumber, freeFrame.getId());
+        pageTable.pageLoaded(pageNumber, targetFrame.getId());
 
-        System.out.println("SUCCESS: Página " + pageNumber + " del proceso " + processId + " cargada en Frame " + freeFrame.getId());
+        // Notificar al algoritmo
+        replacementAlgorithm.onPageLoaded(processId, pageNumber, targetFrame.getId());
+        
+        System.out.println("SUCCESS: Página " + pageNumber + " del proceso " + processId + 
+                        " cargada en Frame " + targetFrame.getId());
         return true;
     }
 
