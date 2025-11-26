@@ -2,7 +2,7 @@ package memory;
 
 public class MemorySimulator {
     public static void main(String[] args) {
-        System.out.println("=== MEMORY SIMULATOR - WEEK 1 ===");
+        System.out.println("=== MEMORY SIMULATOR ===");
         
         // Configuración: 3 marcos, 2 procesos
         MemoryManager memory = new MemoryManager(3);

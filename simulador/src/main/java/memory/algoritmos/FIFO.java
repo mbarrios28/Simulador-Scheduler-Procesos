@@ -1,4 +1,4 @@
-package memory.algortimos;
+package memory.algoritmos;
 
 public class FIFO {
     
