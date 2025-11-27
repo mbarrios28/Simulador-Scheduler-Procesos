@@ -4,7 +4,7 @@ import scheduler.Scheduler;
 import process.Process;
 import process.Burst;
 import process.BurstResource;
-import ProcessThread.ProcessThread;
+import threads.ProcessThread;
 import java.util.ArrayList;
 
 public class AppWithThreads {
@@ -27,11 +27,11 @@ public class AppWithThreads {
         Process p2 = new Process("P2", 0, createBursts(2, 0, 0), 1);
         
         // --- INICIAR SCHEDULER CON HILOS ---
-        Scheduler scheduler = new Scheduler(true);
+        Scheduler scheduler = new Scheduler();
         
         // --- CREAR Y AGREGAR HILOS ---
-        ProcessThread thread1 = new ProcessThread(p1, scheduler);
-        ProcessThread thread2 = new ProcessThread(p2, scheduler);
+        ProcessThread thread1 = new ProcessThread(p1);
+        ProcessThread thread2 = new ProcessThread(p2);
         
         // Iniciar hilos (quedarán en espera)
         thread1.start();

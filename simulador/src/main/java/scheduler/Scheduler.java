@@ -3,6 +3,7 @@ package scheduler;
 import process.Process;
 import process.ProcessState;
 import threads.ProcessThread;
+import threads.IOManager;
 import java.util.LinkedList;
 import java.util.Queue;
 
@@ -10,52 +11,57 @@ public class Scheduler {
     private int tiempoGlobal = 0;
     private final Queue<ProcessThread> readyQueue; 
     private ProcessThread currentThread = null;
+    private IOManager ioManager;
     
     public Scheduler() {
         this.readyQueue = new LinkedList<>();
+        this.ioManager = new IOManager(this);
     }
 
     public void addProcessThread(ProcessThread thread) {
         thread.getProcess().setState(ProcessState.READY);
         this.readyQueue.offer(thread);
-        System.out.println("[T=" + tiempoGlobal + "] " + thread.getProcess().getPID() + " entra a READY.");
+        System.out.println("[T=" + tiempoGlobal + "] " + thread.getProcess().getPID() + " en READY.");
     }
 
     public boolean runOneUnit() {
         System.out.println("\n--- CICLO T=" + tiempoGlobal + " ---");
         
-        // 1. Si hay un proceso ejecutándose, verificar su estado
+        // 1. Manejar proceso actual
         if (currentThread != null) {
             Process currentProcess = currentThread.getProcess();
             
             if (currentThread.isBurstCompleted()) {
-                System.out.println("[T=" + tiempoGlobal + "] " + currentProcess.getPID() + " completó ráfaga");
+                System.out.println("[T=" + tiempoGlobal + "] " + currentProcess.getPID() + " completó burst");
                 
                 if (currentThread.isProcessTerminated()) {
                     currentProcess.setT_finish(tiempoGlobal);
                     System.out.println(">>> " + currentProcess.getPID() + " TERMINADO <<<");
                     currentThread.terminate();
-                    currentThread = null;
-                } else if (currentProcess.getState() == ProcessState.BLOCKED_IO) {
-                    System.out.println(">>> " + currentProcess.getPID() + " BLOQUEADO por E/S <<<");
-                    currentThread = null;
+                } 
+                // Si debe iniciar E/S, mantenerlo en RUNNING para el próximo ciclo
+                else if (currentThread.shouldStartIO()) {
+                    System.out.println(">>> " + currentProcess.getPID() + " programado para E/S <<<");
+                    readyQueue.offer(currentThread);
+                }
+                else if (currentThread.isBlockedByIO()) {
+                    System.out.println(">>> " + currentProcess.getPID() + " en E/S <<<");
                 } else {
-                    // Vuelve a READY
                     currentProcess.setState(ProcessState.READY);
                     readyQueue.offer(currentThread);
-                    System.out.println("[T=" + tiempoGlobal + "] " + currentProcess.getPID() + " vuelve a READY");
-                    currentThread = null;
+                    System.out.println("[T=" + tiempoGlobal + "] " + currentProcess.getPID() + " a READY");
                 }
+                
+                currentThread = null;
             } else {
-                // El proceso necesita MÁS TIEMPO de la misma ráfaga
-                // Ponerlo de nuevo en RUNNING para el siguiente ciclo
-                System.out.println("[T=" + tiempoGlobal + "] " + currentProcess.getPID() + " necesita más tiempo de CPU");
+                // Necesita más tiempo de CPU
+                System.out.println("[T=" + tiempoGlobal + "] " + currentProcess.getPID() + " necesita más CPU");
                 readyQueue.offer(currentThread);
                 currentThread = null;
             }
         }
         
-        // 2. Despachar siguiente proceso si CPU está libre
+        // 2. Despachar siguiente proceso
         if (currentThread == null && !readyQueue.isEmpty()) {
             currentThread = readyQueue.poll();
             Process currentProcess = currentThread.getProcess();
@@ -70,27 +76,33 @@ public class Scheduler {
             System.out.println("[T=" + tiempoGlobal + "] DISPATCH: " + currentProcess.getPID() + " → RUNNING");
         }
         
-        // 3. Incrementar tiempo de espera para procesos en cola
+        // 3. Tiempo de espera
         for (ProcessThread thread : readyQueue) {
             thread.getProcess().setT_wait(thread.getProcess().getT_wait() + 1);
         }
         
-        // 4. Mostrar estado actual
+        // 4. Estado actual
         if (currentThread == null && !readyQueue.isEmpty()) {
-            System.out.println("[T=" + tiempoGlobal + "] IDLE: " + readyQueue.size() + " procesos en READY");
+            System.out.println("[T=" + tiempoGlobal + "] IDLE: " + readyQueue.size() + " en READY");
         } else if (currentThread == null) {
-            System.out.println("[T=" + tiempoGlobal + "] IDLE: No hay procesos");
+            System.out.println("[T=" + tiempoGlobal + "] IDLE: Sin procesos");
         } else {
-            System.out.println("[T=" + tiempoGlobal + "] EXEC: " + currentThread.getProcess().getPID() + " en CPU");
+            System.out.println("[T=" + tiempoGlobal + "] EXEC: " + currentThread.getProcess().getPID());
         }
         
-        // 5. Incrementar tiempo global
+        System.out.println("[T=" + tiempoGlobal + "] E/S activas: " + ioManager.getActiveIOOperations());
+        
         tiempoGlobal++;
         
-        // 6. Verificar si hay trabajo pendiente
-        boolean trabajoPendiente = !readyQueue.isEmpty() || currentThread != null;
-        
-        return trabajoPendiente;
+        return !readyQueue.isEmpty() || currentThread != null || ioManager.hasActiveIO();
+    }
+    
+    public IOManager getIOManager() {
+        return ioManager;
+    }
+    
+    public void shutdown() {
+        ioManager.shutdown();
     }
     
     public int getTiempoGlobal() {

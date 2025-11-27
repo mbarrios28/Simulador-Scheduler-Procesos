@@ -1,8 +1,8 @@
 package ProcessThread;
 
-/**
- * Representa una ráfaga de CPU o E/S
- */
+
+ //Representa una ráfaga de CPU o E/S
+
 public class Burst {
     private BurstType type;
     private int duration;
