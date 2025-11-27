@@ -1,11 +1,13 @@
 package memory;
+import memory.algoritmos.FIFO;
 
 public class MemorySimulator {
     public static void main(String[] args) {
         System.out.println("=== MEMORY SIMULATOR ===");
         
         // Configuración: 3 marcos, 2 procesos
-        MemoryManager memory = new MemoryManager(3);
+        FIFO fifoAlgorithm = new FIFO();
+        MemoryManager memory = new MemoryManager(3, fifoAlgorithm);
         memory.createProcess("P1", 4);
         memory.createProcess("P2", 3);
         

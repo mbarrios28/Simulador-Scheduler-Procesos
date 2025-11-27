@@ -76,9 +76,23 @@ public class MemoryManager {
             
             targetFrame = physicalMemory.get(victimFrameId);
             // Expulsar la página víctima
-            String victimProcessId = targetFrame.getProcessId();
-            PageTable victimPageTable = processPageTables.get(victimProcessId);
-            Integer victimPageNumber = victimPageTable.findPageInFrame(victimFrameId);
+            // Determinar proceso y página víctima recorriendo tablas
+            String victimProcessId = null;
+            PageTable victimPageTable = null;
+            Integer victimPageNumber = null;
+            for (Map.Entry<String, PageTable> entry : processPageTables.entrySet()) {
+                Integer pn = entry.getValue().findPageInFrame(victimFrameId);
+                if (pn != null) {
+                    victimProcessId = entry.getKey();
+                    victimPageTable = entry.getValue();
+                    victimPageNumber = pn;
+                    break;
+                }
+            }
+            if (victimProcessId == null || victimPageTable == null || victimPageNumber == null) {
+                System.out.println("ERROR: No se encontró la página víctima en tablas de páginas");
+                return false;
+            }
             System.out.println("REEMPLAZO: Expulsando " + victimProcessId + "-Page" + victimPageNumber + 
                           " del Frame " + victimFrameId);
         
@@ -99,7 +113,7 @@ public class MemoryManager {
         }
        
         // cargar la nueva página 
-        targetFrame.occupy(processId);
+        targetFrame.occupy();
         PageTable pageTable = processPageTables.get(processId);
         pageTable.pageLoaded(pageNumber, targetFrame.getId());
 
@@ -121,15 +135,14 @@ public class MemoryManager {
         if (!frame.isOccupied()) {
             return "FREE";
         }
-        
-        PageTable pageTable = processPageTables.get(frame.getProcessId());
-        if (pageTable != null) {
-            Integer pageNumber = pageTable.findPageInFrame(frame.getId());
+        // Buscar en todas las tablas cuál proceso tiene este frame asignado
+        for (Map.Entry<String, PageTable> entry : processPageTables.entrySet()) {
+            Integer pageNumber = entry.getValue().findPageInFrame(frame.getId());
             if (pageNumber != null) {
-                return frame.getProcessId() + "-Page" + pageNumber;
+                return entry.getKey() + "-Page" + pageNumber;
             }
         }
-        return frame.getProcessId() + "-UNKNOWN";
+        return "UNKNOWN-Page";
     }
 
     public void printMemoryStatus() {
@@ -150,6 +163,26 @@ public class MemoryManager {
         System.out.println("\n=== ALL PAGE TABLES ===");
         for (PageTable pageTable : processPageTables.values()) {
             pageTable.printPageTable();
+        }
+    }
+
+    // Obtener fallos de página de un proceso
+    public int getPageFaults(String processId) {
+        return pageFaultCount.getOrDefault(processId, 0);
+    }
+
+    // Obtener reemplazos de un proceso
+    public int getReplacements(String processId) {
+        return replacementCount.getOrDefault(processId, 0);
+    }
+
+    // Imprimir estadísticas completas
+    public void printStatistics() {
+        System.out.println("\n=== ESTADÍSTICAS DE MEMORIA ===");
+        System.out.println("Algoritmo: " + replacementAlgorithm.getName());
+        for (String pid : processPageTables.keySet()) {
+            System.out.println(pid + " - Fallos: " + getPageFaults(pid) + 
+                              ", Reemplazos: " + getReplacements(pid));
         }
     }
 
