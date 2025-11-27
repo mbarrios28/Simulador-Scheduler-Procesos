@@ -15,7 +15,7 @@ public class App {
     }
 
     public static void main(String[] args) throws InterruptedException {
-        System.out.println("=== SEMANA 2 - E/S DETALLADO ===\n");
+        System.out.println(" SEMANA 2 E/S \n");
         
         // Proceso: CPU(1) → E/S(2) → CPU(1)
         Process p1 = new Process("P1", 0, createBursts(1, 2, 1), 1);
@@ -30,30 +30,30 @@ public class App {
         
         scheduler.addProcessThread(thread1);
         
-        System.out.println("\n*** INICIO SIMULACIÓN ***");
+        System.out.println("\nINICIO SIMULACIÓN ");
         
         boolean trabajoPendiente = true;
         int maxCiclos = 20;
         
         while (trabajoPendiente && maxCiclos > 0) {
-            System.out.println("\n=== CICLO " + (20 - maxCiclos) + " ===");
+            System.out.println("\nCICLO " + (20 - maxCiclos) + " ");
             trabajoPendiente = scheduler.runOneUnit();
             Thread.sleep(1000); // 1 segundo entre ciclos para ver E/S
             maxCiclos--;
         }
         
-        System.out.println("\n*** FIN SIMULACIÓN ***");
+        System.out.println("\nFIN SIMULACIÓN ");
         
-        System.out.println("\n=== ESTADO FINAL ===");
+        System.out.println("\nESTADO FINAL");
         System.out.println("P1 - Estado: " + p1.getState() + 
-                          ", CPU: " + p1.getCpu_usage() +
-                          ", Espera: " + p1.getT_wait());
+                            ", CPU: " + p1.getCpu_usage() +
+                            ", Espera: " + p1.getT_wait());
         
         // Esperar para ver logs de E/S
         System.out.println("\nEsperando 5 segundos para operaciones E/S...");
         Thread.sleep(5000);
         
         scheduler.shutdown();
-        System.out.println("\n=== SIMULACIÓN COMPLETADA ===");
+        System.out.println("\nSIMULACIÓN COMPLETADA");
     }
 }

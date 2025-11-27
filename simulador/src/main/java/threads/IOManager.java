@@ -14,30 +14,30 @@ public class IOManager {
         this.scheduler = scheduler;
         this.ioExecutor = Executors.newScheduledThreadPool(2);
         this.ioOperations = new ConcurrentHashMap<>();
-        System.out.println("[IOManager] ✅ IOManager inicializado");
+        System.out.println("[IOManager]  IOManager inicializado");
     }
     
     public void startIOOperation(Process process, int duration, ProcessThread thread) {
         String pid = process.getPID();
         
-        System.out.println("[IOManager] 🚀 INICIANDO E/S para " + pid + 
-                         " - Duración: " + duration + " unidades");
+        System.out.println("[IOManager]  INICIANDO E/S para " + pid + 
+                    " - Duración: " + duration + " unidades");
         
         ScheduledFuture<?> future = ioExecutor.schedule(() -> {
-            System.out.println("[IOManager] ⏰ Timer E/S expirado para " + pid);
+            System.out.println("[IOManager]  Timer E/S expirado para " + pid);
             completeIOOperation(process, thread);
         }, duration * 1000L, TimeUnit.MILLISECONDS);
         
         ioOperations.put(pid, future);
         process.setState(ProcessState.BLOCKED_IO);
         
-        System.out.println("[IOManager] 📊 E/S activas: " + ioOperations.size());
+        System.out.println("[IOManager]  E/S activas: " + ioOperations.size());
     }
     
     private void completeIOOperation(Process process, ProcessThread thread) {
         String pid = process.getPID();
         
-        System.out.println("[IOManager] ✅ E/S COMPLETADA para " + pid);
+        System.out.println("[IOManager]  E/S COMPLETADA para " + pid);
         
         synchronized (process) {
             // Pasar a la siguiente ráfaga
@@ -46,18 +46,18 @@ public class IOManager {
             
             // Verificar si terminó después de la E/S
             if (process.getState() == ProcessState.TERMINATED) {
-                System.out.println("[IOManager] 🏁 " + pid + " TERMINÓ después de E/S");
+                System.out.println("[IOManager]  " + pid + " TERMINÓ después de E/S");
                 // No reactivar - el proceso terminó
             } else {
                 // Reactivar proceso
                 process.setState(ProcessState.READY);
-                System.out.println("[IOManager] 🔄 " + pid + " reactivado a READY");
+                System.out.println("[IOManager]  " + pid + " reactivado a READY");
                 scheduler.addProcessThread(thread);
             }
         }
         
         ioOperations.remove(pid);
-        System.out.println("[IOManager] 📊 E/S activas restantes: " + ioOperations.size());
+        System.out.println("[IOManager]  E/S activas restantes: " + ioOperations.size());
     }
     
     public int getActiveIOOperations() {
@@ -69,12 +69,12 @@ public class IOManager {
     }
     
     public void shutdown() {
-        System.out.println("[IOManager] 🔴 Apagando IOManager...");
+        System.out.println("[IOManager]  Apagando IOManager...");
         for (String pid : ioOperations.keySet()) {
             ScheduledFuture<?> future = ioOperations.get(pid);
             if (future != null && !future.isDone()) {
                 future.cancel(false);
-                System.out.println("[IOManager] ❌ E/S cancelada para " + pid);
+                System.out.println("[IOManager]  E/S cancelada para " + pid);
             }
         }
         ioOperations.clear();
@@ -88,6 +88,6 @@ public class IOManager {
             ioExecutor.shutdownNow();
             Thread.currentThread().interrupt();
         }
-        System.out.println("[IOManager] 🔴 IOManager apagado");
+        System.out.println("[IOManager]  IOManager apagado");
     }
 }

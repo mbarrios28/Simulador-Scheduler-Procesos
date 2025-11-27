@@ -61,7 +61,7 @@ public class ProcessThread extends Thread {
             
             // CASO 2: Verificar si el proceso terminó
             if (process.isFinished()) {
-                System.out.println("[ProcessThread] 🏁 " + process.getPID() + " TERMINÓ (no hay más ráfagas)");
+                System.out.println("[ProcessThread]  " + process.getPID() + " TERMINÓ (no hay más ráfagas)");
                 process.setState(ProcessState.TERMINATED);
                 burstCompleted = true;
                 return;
@@ -70,7 +70,7 @@ public class ProcessThread extends Thread {
             // CASO 3: Ejecución normal
             Burst currentBurst = process.getBurst();
             if (currentBurst == null) {
-                System.out.println("[ProcessThread] ❌ " + process.getPID() + " no tiene ráfaga actual");
+                System.out.println("[ProcessThread]  " + process.getPID() + " no tiene ráfaga actual");
                 burstCompleted = true;
                 return;
             }
@@ -83,7 +83,7 @@ public class ProcessThread extends Thread {
             if (currentBurst.getResource() == BurstResource.CPU) {
                 executeCPUUnit(currentBurst);
             } else if (currentBurst.getResource() == BurstResource.IO) {
-                System.out.println("[ProcessThread] ⚠️ " + process.getPID() + 
+                System.out.println("[ProcessThread]  " + process.getPID() + 
                                  " tiene ráfaga E/S en estado: " + process.getState());
                 startIOOperation();
             }
@@ -108,7 +108,7 @@ public class ProcessThread extends Thread {
             
             // Verificar si el proceso terminó
             if (process.getState() == ProcessState.TERMINATED) {
-                System.out.println("[ProcessThread] 🏁 " + process.getPID() + " TERMINÓ completamente");
+                System.out.println("[ProcessThread]  " + process.getPID() + " TERMINÓ completamente");
                 burstCompleted = true;
                 return;
             }
@@ -116,7 +116,7 @@ public class ProcessThread extends Thread {
             // Verificar si la siguiente ráfaga es E/S
             Burst nextBurst = process.getBurst();
             if (nextBurst != null && nextBurst.getResource() == BurstResource.IO) {
-                System.out.println("[ProcessThread] 🔄 " + process.getPID() + 
+                System.out.println("[ProcessThread]  " + process.getPID() + 
                                  " siguiente ráfaga es E/S, programando inicio...");
                 shouldStartIO = true;
                 burstCompleted = true;
@@ -132,7 +132,7 @@ public class ProcessThread extends Thread {
     private void startIOOperation() {
         // Verificar si el proceso terminó antes de iniciar E/S
         if (process.isFinished() || process.getState() == ProcessState.TERMINATED) {
-            System.out.println("[ProcessThread] ❌ " + process.getPID() + 
+            System.out.println("[ProcessThread]  " + process.getPID() + 
                              " - Proceso terminó, no se inicia E/S");
             burstCompleted = true;
             return;
@@ -140,15 +140,15 @@ public class ProcessThread extends Thread {
         
         Burst ioBurst = process.getBurst();
         if (ioBurst != null && ioBurst.getResource() == BurstResource.IO) {
-            System.out.println("[ProcessThread] 🚀 " + process.getPID() + 
+            System.out.println("[ProcessThread]  " + process.getPID() + 
                              " INICIANDO E/S - Duración: " + ioBurst.getTime_total());
             
             ioManager.startIOOperation(process, ioBurst.getTime_total(), this);
             burstCompleted = true;
             
-            System.out.println("[ProcessThread] ✅ " + process.getPID() + " - E/S iniciada");
+            System.out.println("[ProcessThread]  " + process.getPID() + " - E/S iniciada");
         } else {
-            System.out.println("[ProcessThread] ❌ " + process.getPID() + 
+            System.out.println("[ProcessThread] " + process.getPID() + 
                              " - No hay ráfaga E/S válida");
             burstCompleted = true;
         }
