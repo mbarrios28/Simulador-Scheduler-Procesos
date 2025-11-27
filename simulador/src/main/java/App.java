@@ -1,48 +1,59 @@
-import scheduler.Scheduler; 
-import process.Process;     
-import process.Burst;       
+import scheduler.Scheduler;
+import process.Process;
+import process.Burst;
 import process.BurstResource;
+import threads.ProcessThread;
 import java.util.ArrayList;
 
 public class App {
-
-    // Método de ayuda para crear ráfagas manualmente para las pruebas
     private static ArrayList<Burst> createBursts(int cpu1, int io, int cpu2) {
         ArrayList<Burst> bursts = new ArrayList<>();
-        // Ráfaga 1
         if (cpu1 > 0) bursts.add(new Burst(BurstResource.CPU, cpu1));
-        // Ráfaga 2 (E/S)
         if (io > 0) bursts.add(new Burst(BurstResource.IO, io));
-        // Ráfaga 3
         if (cpu2 > 0) bursts.add(new Burst(BurstResource.CPU, cpu2));
         return bursts;
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
+        System.out.println(" SEMANA 2 E/S \n");
         
-        // --- PROCESOS DE PRUEBA (FCFS) ---
+        // Proceso: CPU(1) → E/S(2) → CPU(1)
+        Process p1 = new Process("P1", 0, createBursts(1, 2, 1), 1);
         
-        // P2: T.Llegada=0, Ráfaga=3 (CPU(3))
-        Process p2 = new Process("P2", 0, createBursts(3, 0, 0), 1);
-        
-        // P3: T.Llegada=0, Ráfaga=4 (CPU(4))
-        Process p3 = new Process("P3", 0, createBursts(4, 0, 0), 1);
-
-        // --- INICIAR SCHEDULER ---
         Scheduler scheduler = new Scheduler();
-
-        // Prueba Obligatoria 2: 2 procesos alternando (FCFS)
-        // P2 entra primero, por lo tanto, ejecuta primero.
-        scheduler.addProcess(p2); 
-        scheduler.addProcess(p3); 
-
-        System.out.println("\n*** INICIO SIMULACION FCFS (Tiempo 0) ***");
+        ProcessThread thread1 = new ProcessThread(p1, scheduler.getIOManager());
         
-        // Bucle principal de simulación
-        while (scheduler.runOneUnit()) {
-            // El Scheduler ejecuta una unidad de tiempo en cada ciclo.
+        System.out.println("Estado inicial P1: " + p1.getState());
+        
+        thread1.start();
+        Thread.sleep(500); // Más tiempo para inicialización
+        
+        scheduler.addProcessThread(thread1);
+        
+        System.out.println("\nINICIO SIMULACIÓN ");
+        
+        boolean trabajoPendiente = true;
+        int maxCiclos = 20;
+        
+        while (trabajoPendiente && maxCiclos > 0) {
+            System.out.println("\nCICLO " + (20 - maxCiclos) + " ");
+            trabajoPendiente = scheduler.runOneUnit();
+            Thread.sleep(1000); // 1 segundo entre ciclos para ver E/S
+            maxCiclos--;
         }
         
-        System.out.println("*** FIN SIMULACION FCFS ***\n");
+        System.out.println("\nFIN SIMULACIÓN ");
+        
+        System.out.println("\nESTADO FINAL");
+        System.out.println("P1 - Estado: " + p1.getState() + 
+                            ", CPU: " + p1.getCpu_usage() +
+                            ", Espera: " + p1.getT_wait());
+        
+        // Esperar para ver logs de E/S
+        System.out.println("\nEsperando 5 segundos para operaciones E/S...");
+        Thread.sleep(5000);
+        
+        scheduler.shutdown();
+        System.out.println("\nSIMULACIÓN COMPLETADA");
     }
 }

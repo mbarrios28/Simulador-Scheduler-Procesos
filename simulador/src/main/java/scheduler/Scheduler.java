@@ -2,95 +2,110 @@ package scheduler;
 
 import process.Process;
 import process.ProcessState;
-import process.Burst;
+import threads.ProcessThread;
+import threads.IOManager;
 import java.util.LinkedList;
 import java.util.Queue;
 
 public class Scheduler {
     private int tiempoGlobal = 0;
-    // Cola de Procesos Listos (FIFO - FCFS)
-    private final Queue<Process> readyQueue; 
-    private Process currentProcess = null; // Proceso en estado RUNNING
-
+    private final Queue<ProcessThread> readyQueue; 
+    private ProcessThread currentThread = null;
+    private IOManager ioManager;
+    
     public Scheduler() {
         this.readyQueue = new LinkedList<>();
+        this.ioManager = new IOManager(this);
     }
 
-
-    // Transición NEW -> READY: Agrega un proceso a la cola de listos.
-    public void addProcess(Process p) {
-        p.setState(ProcessState.READY);
-        this.readyQueue.offer(p);
-        System.out.println("[T=" + tiempoGlobal + "] " + p.getPID() + " entra a READY.");
+    public void addProcessThread(ProcessThread thread) {
+        thread.getProcess().setState(ProcessState.READY);
+        this.readyQueue.offer(thread);
+        System.out.println("[T=" + tiempoGlobal + "] " + thread.getProcess().getPID() + " en READY.");
     }
 
-    // Transición READY -> RUNNING: Selecciona el siguiente proceso (FIFO).
-    private void dispatch() {
-        // Solo si la CPU esta libre Y la cola no esta vacia
-        if (currentProcess == null && !readyQueue.isEmpty()) {
-            currentProcess = readyQueue.poll(); // Obtiene el primero (FCFS)
+    public boolean runOneUnit() {
+        System.out.println("\n--- CICLO T=" + tiempoGlobal + " ---");
+        
+        // 1. Manejar proceso actual
+        if (currentThread != null) {
+            Process currentProcess = currentThread.getProcess();
             
-            currentProcess.setState(ProcessState.RUNNING);
+            if (currentThread.isBurstCompleted()) {
+                System.out.println("[T=" + tiempoGlobal + "] " + currentProcess.getPID() + " completó burst");
+                
+                if (currentThread.isProcessTerminated()) {
+                    currentProcess.setT_finish(tiempoGlobal);
+                    System.out.println(">>> " + currentProcess.getPID() + " TERMINADO <<<");
+                    currentThread.terminate();
+                } 
+                // Si debe iniciar E/S, mantenerlo en RUNNING para el próximo ciclo
+                else if (currentThread.shouldStartIO()) {
+                    System.out.println(">>> " + currentProcess.getPID() + " programado para E/S <<<");
+                    readyQueue.offer(currentThread);
+                }
+                else if (currentThread.isBlockedByIO()) {
+                    System.out.println(">>> " + currentProcess.getPID() + " en E/S <<<");
+                } else {
+                    currentProcess.setState(ProcessState.READY);
+                    readyQueue.offer(currentThread);
+                    System.out.println("[T=" + tiempoGlobal + "] " + currentProcess.getPID() + " a READY");
+                }
+                
+                currentThread = null;
+            } else {
+                // Necesita más tiempo de CPU
+                System.out.println("[T=" + tiempoGlobal + "] " + currentProcess.getPID() + " necesita más CPU");
+                readyQueue.offer(currentThread);
+                currentThread = null;
+            }
+        }
+        
+        // 2. Despachar siguiente proceso
+        if (currentThread == null && !readyQueue.isEmpty()) {
+            currentThread = readyQueue.poll();
+            Process currentProcess = currentThread.getProcess();
             
-            // Registrar tiempo de inicio si es la primera vez
             if (currentProcess.getT_start() == -1) {
                 currentProcess.setT_start(tiempoGlobal);
             }
             
-            // NOTA: Se reemplaza "ráfaga" por "rafaga" para evitar problemas de encoding
-            System.out.println("[T=" + tiempoGlobal + "] DISPATCH: " + currentProcess.getPID() + " inicia rafaga CPU.");
+            currentProcess.setState(ProcessState.RUNNING);
+            currentThread.startExecution();
+            
+            System.out.println("[T=" + tiempoGlobal + "] DISPATCH: " + currentProcess.getPID() + " → RUNNING");
         }
-    }
-
-    // Simula una unidad de tiempo y gestiona las transiciones.
-    public boolean runOneUnit() {
-        // 1. Intentar Dispatch si la CPU esta libre
-        dispatch();
-
-        // 2. Ejecutar el proceso actual
-        if (currentProcess != null) {
-            
-            Burst currentBurst = currentProcess.getBurst();
-            
-            // a) Consumir una unidad de tiempo de la rafaga
-            currentBurst.consumirUnidad();
-            
-            // Acumular uso de CPU para metricas
-            currentProcess.setCpu_usage(currentProcess.getCpu_usage() + 1); 
-
-            System.out.println("[T=" + tiempoGlobal + "] EXEC: " + currentProcess.getPID() + 
-                               " (Restante: " + currentBurst.getTime_remaining() + ")");
-
-            // b) Verificar fin de rafaga
-            if (currentBurst.isFinished()) {
-                
-                // Pasa a la siguiente rafaga/estado (TERMINATED, BLOCKED_IO, o READY)
-                currentProcess.nextBurst(); 
-                
-                System.out.println("[T=" + tiempoGlobal + "] FIN RAFAGA: " + currentProcess.getPID());
-
-                // Verificar el nuevo estado:
-                if (currentProcess.getState() == ProcessState.TERMINATED) {
-                    currentProcess.setT_finish(tiempoGlobal + 1); 
-                    System.out.println("--- " + currentProcess.getPID() + " TERMINADO. ---");
-                } else if (currentProcess.getState() == ProcessState.BLOCKED_IO) {
-                    System.out.println("--- " + currentProcess.getPID() + " BLOQUEADO por E/S. ---");
-                } 
-                
-                currentProcess = null; // Liberar CPU
-            }
+        
+        // 3. Tiempo de espera
+        for (ProcessThread thread : readyQueue) {
+            thread.getProcess().setT_wait(thread.getProcess().getT_wait() + 1);
+        }
+        
+        // 4. Estado actual
+        if (currentThread == null && !readyQueue.isEmpty()) {
+            System.out.println("[T=" + tiempoGlobal + "] IDLE: " + readyQueue.size() + " en READY");
+        } else if (currentThread == null) {
+            System.out.println("[T=" + tiempoGlobal + "] IDLE: Sin procesos");
         } else {
-            // 3. Manejar tiempo de espera para procesos en READY (metricas)
-            for (Process p : readyQueue) {
-                p.setT_wait(p.getT_wait() + 1); 
-            }
-            System.out.println("[T=" + tiempoGlobal + "] IDLE: CPU inactiva.");
+            System.out.println("[T=" + tiempoGlobal + "] EXEC: " + currentThread.getProcess().getPID());
         }
-
-        // 4. Incrementar tiempo global. 
+        
+        System.out.println("[T=" + tiempoGlobal + "] E/S activas: " + ioManager.getActiveIOOperations());
+        
         tiempoGlobal++;
-
-        // 5. Devolver si queda trabajo pendiente
-        return !readyQueue.isEmpty() || currentProcess != null;
+        
+        return !readyQueue.isEmpty() || currentThread != null || ioManager.hasActiveIO();
+    }
+    
+    public IOManager getIOManager() {
+        return ioManager;
+    }
+    
+    public void shutdown() {
+        ioManager.shutdown();
+    }
+    
+    public int getTiempoGlobal() {
+        return tiempoGlobal;
     }
 }
