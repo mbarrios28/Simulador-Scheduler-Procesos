@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Queue;
 
 import memory.algoritmos.ReplacementAlgorithm;
+import process.Process;
 
 public class MemoryManager {
     private List<Frame> physicalMemory;
@@ -144,6 +145,37 @@ public class MemoryManager {
         }
         return "UNKNOWN-Page";
     }
+
+    //Implementación de ensurePages
+    public boolean ensurePages(Process process) {
+        String pid = process.getPID();
+        int totalPages = process.getPages();
+
+        // Registrar el proceso en la tabla de procesos
+        if (processPageTables.get(pid) == null) {
+            createProcess(pid, totalPages);
+        }
+
+        // Ver cuántos marcos libres hay actualmente
+        int free = freeFrames.size();
+
+        // Si no hay marcos suficientes, NO cargar nada
+        if (free < totalPages) {
+            System.out.println("[MEMORY BLOCK] Proceso " + pid +
+                            " necesita " + totalPages + 
+                            " páginas pero solo hay " + free + " marcos.");
+            return false;
+        }
+
+        // Caso contrario cargar las páginas
+        for (int pageNumber = 0; pageNumber < totalPages; pageNumber++) {
+            boolean ok = loadPage(pid, pageNumber);
+            if (!ok) return false; // Manejo de excepción por si falla el algoritmo
+        }
+
+        return true;
+    }
+
 
     public void printMemoryStatus() {
         System.out.println("\n=== MEMORY STATUS ===");
