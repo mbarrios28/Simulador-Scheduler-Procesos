@@ -3,15 +3,18 @@ package threads;
 import process.Process;
 import process.ProcessState;
 import scheduler.Scheduler;
+import synchronization.SyncManager;
 import java.util.concurrent.*;
 
 public class IOManager {
     private final ScheduledExecutorService ioExecutor;
     private final ConcurrentHashMap<String, ScheduledFuture<?>> ioOperations;
     private Scheduler scheduler;
+    private SyncManager syncManager;
     
     public IOManager(Scheduler scheduler) {
         this.scheduler = scheduler;
+        this.syncManager = SyncManager.getInstance();
         this.ioExecutor = Executors.newScheduledThreadPool(2);
         this.ioOperations = new ConcurrentHashMap<>();
         System.out.println("[IOManager]  IOManager inicializado");
@@ -20,18 +23,23 @@ public class IOManager {
     public void startIOOperation(Process process, int duration, ProcessThread thread) {
         String pid = process.getPID();
         
-        System.out.println("[IOManager]  INICIANDO E/S para " + pid + 
-                    " - Duración: " + duration + " unidades");
-        
-        ScheduledFuture<?> future = ioExecutor.schedule(() -> {
-            System.out.println("[IOManager]  Timer E/S expirado para " + pid);
-            completeIOOperation(process, thread);
-        }, duration * 1000L, TimeUnit.MILLISECONDS);
-        
-        ioOperations.put(pid, future);
-        process.setState(ProcessState.BLOCKED_IO);
-        
-        System.out.println("[IOManager]  E/S activas: " + ioOperations.size());
+        syncManager.acquireProcessLock(pid);
+        try {
+            System.out.println("[IOManager]  INICIANDO E/S para " + pid + 
+                        " - Duración: " + duration + " unidades");
+            
+            ScheduledFuture<?> future = ioExecutor.schedule(() -> {
+                System.out.println("[IOManager]  Timer E/S expirado para " + pid);
+                completeIOOperation(process, thread);
+            }, duration * 1000L, TimeUnit.MILLISECONDS);
+            
+            ioOperations.put(pid, future);
+            process.setState(ProcessState.BLOCKED_IO);
+            
+            System.out.println("[IOManager]  E/S activas: " + ioOperations.size());
+        } finally {
+            syncManager.releaseProcessLock(pid);
+        }
     }
     
     private void completeIOOperation(Process process, ProcessThread thread) {
@@ -39,7 +47,8 @@ public class IOManager {
         
         System.out.println("[IOManager]  E/S COMPLETADA para " + pid);
         
-        synchronized (process) {
+        syncManager.acquireProcessLock(pid);
+        try {
             // Pasar a la siguiente ráfaga
             System.out.println("[IOManager] Avanzando a siguiente ráfaga de " + pid);
             process.nextBurst();
@@ -54,12 +63,15 @@ public class IOManager {
                 System.out.println("[IOManager]  " + pid + " reactivado a READY");
                 scheduler.addProcessThread(thread);
             }
+        } finally {
+            syncManager.releaseProcessLock(pid);
         }
         
         ioOperations.remove(pid);
         System.out.println("[IOManager]  E/S activas restantes: " + ioOperations.size());
     }
     
+    // Resto de métodos permanecen igual...
     public int getActiveIOOperations() {
         return ioOperations.size();
     }

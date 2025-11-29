@@ -4,6 +4,7 @@ import process.Process;
 import process.ProcessState;
 import process.Burst;
 import process.BurstResource;
+import synchronization.SyncManager;
 
 public class ProcessThread extends Thread {
     private Process process;
@@ -13,10 +14,12 @@ public class ProcessThread extends Thread {
     private volatile boolean burstCompleted = false;
     private IOManager ioManager;
     private volatile boolean shouldStartIO = false;
+    private SyncManager syncManager;
     
     public ProcessThread(Process process, IOManager ioManager) {
         this.process = process;
         this.ioManager = ioManager;
+        this.syncManager = SyncManager.getInstance();
     }
     
     @Override
@@ -42,10 +45,12 @@ public class ProcessThread extends Thread {
         }
         
         System.out.println("[ProcessThread] Hilo terminado para: " + process.getPID());
+        syncManager.cleanupProcess(process.getPID());
     }
     
     private void executeOneUnit() {
-        synchronized (process) {
+        syncManager.acquireProcessLock(process.getPID());
+        try {
             if (process.getState() == ProcessState.TERMINATED) {
                 System.out.println("[ProcessThread] " + process.getPID() + " ya terminó");
                 burstCompleted = true;
@@ -87,6 +92,8 @@ public class ProcessThread extends Thread {
                                  " tiene ráfaga E/S en estado: " + process.getState());
                 startIOOperation();
             }
+        } finally {
+            syncManager.releaseProcessLock(process.getPID());
         }
     }
     
@@ -154,6 +161,7 @@ public class ProcessThread extends Thread {
         }
     }
     
+    // Resto de métodos permanecen igual...
     public void startExecution() {
         synchronized (executionLock) {
             running = true;
