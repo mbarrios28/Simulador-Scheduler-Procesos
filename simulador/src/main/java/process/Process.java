@@ -97,8 +97,39 @@ public class Process {
         return priority;
     }
 
+    public int getT_start() {
+        return t_start;
+    }
+
+    public int getT_finish() {
+        return t_finish;
+    }
+
+    public int getT_wait() {
+        return t_wait;
+    }
+
+    public int getCpu_usage() {
+        return cpu_usage;
+    }
+
+    public void setCpu_usage(int cpu_usage) {
+        this.cpu_usage = cpu_usage;
+    }
+    public void setT_start(int t_start) {
+        this.t_start = t_start;
+    }
+
+    public void setT_finish(int t_finish) {
+        this.t_finish = t_finish;
+    }
+
     public void setState(ProcessState state) {
         this.state = state;
+    }
+
+    public void setT_wait(int t_wait) {
+        this.t_wait = t_wait;
     }
 
     //toString()

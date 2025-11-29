@@ -16,4 +16,5 @@ release.properties
 *.class
 
 # Logs
+
 *.log
