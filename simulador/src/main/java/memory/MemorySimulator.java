@@ -14,28 +14,31 @@ public class MemorySimulator {
         }
 
         MemoryManager memory = new MemoryManager(3, algorithm);
-        memory.createProcess("P1", 4);
-        memory.createProcess("P2", 3);
+        memory.createProcess("P1", 5);
+        memory.createProcess("P2", 4);
 
-        System.out.println("--- Cargando páginas ---");
-        memory.loadPage("P1", 0);
-        memory.loadPage("P1", 1);
-        memory.loadPage("P2", 0);
+        // Secuencia de accesos diseñada para diferenciar FIFO, LRU y Óptimo
+        List<String> accessTrace = Arrays.asList(
+            "P1:0", "P1:1", "P2:0", // llena memoria
+            "P1:0", // refresca recencia Page0 para LRU
+            "P2:1", // fault
+            "P1:2", // fault
+            "P2:0", // puede ser fault según reemplazo previo
+            "P1:0", // hit preferente en LRU si conservada
+            "P2:1", // hit (refresca)
+            "P1:3"  // nuevo fault
+        );
 
-        memory.printMemoryStatus();
-        memory.printAllPageTables();
+        System.out.println("--- Ejecutando trazas de accessPage ---");
+        for (String op : accessTrace) {
+            String[] parts = op.split(":");
+            String pid = parts[0];
+            int page = Integer.parseInt(parts[1]);
+            MemoryManager.AccessResult r = memory.accessPage(pid, page);
+            System.out.println(pid + ":" + page + " -> " + r.toString());
+        }
 
-        System.out.println("--- Provocando fallos de página ---");
-        memory.loadPage("P2", 1);
-        // Acceso adicional para LRU (refresca recencia de P1-Page0)
-        memory.loadPage("P1", 0);
-        memory.loadPage("P1", 2);
-
-        System.out.println("--- Verificación final ---");
-        System.out.println("P1-Page0 cargada: " + memory.isPageLoaded("P1", 0));
-        System.out.println("P1-Page3 cargada: " + memory.isPageLoaded("P1", 3));
-        System.out.println("P2-Page1 cargada: " + memory.isPageLoaded("P2", 1));
-
+        System.out.println("--- Estado final ---");
         memory.printMemoryStatus();
         memory.printAllPageTables();
         memory.printStatistics();
@@ -46,12 +49,10 @@ public class MemorySimulator {
 
         // Ejecutar casos de prueba para los tres algoritmos en un mismo programa
         runScenario("FIFO", new FIFO(), null);
-
         runScenario("LRU", new LRU(), null);
-
         Map<String, List<Integer>> futuras = new HashMap<>();
-        futuras.put("P1", Arrays.asList(0, 1, 0, 2, 3));
-        futuras.put("P2", Arrays.asList(0, 1, 2));
+        futuras.put("P1", Arrays.asList(0,1,2,0,3));
+        futuras.put("P2", Arrays.asList(0,1,0,1));
         runScenario("Óptimo", new Optimo(), futuras);
     }
 }

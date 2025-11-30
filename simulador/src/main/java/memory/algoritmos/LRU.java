@@ -26,7 +26,7 @@ public class LRU implements ReplacementAlgorithm {
 
         for (Frame frame : physicalMemory) {
             if (!frame.isOccupied()) {
-                // Si hay un frame libre, podemos usarlo como víctima inmediata
+                // Si hay un frame libre, podemos usarlo como long lastAccess = -1Líctima inmediata
                 return frame.getId();
             }
 
@@ -42,11 +42,13 @@ public class LRU implements ReplacementAlgorithm {
                 }
             }
 
-            // Si no se pudo determinar, considerar como muy antiguo
-            long lastAccess = -1L;
-            if (ownerProcess != null && ownerPage != null) {
-                lastAccess = accessTime.getOrDefault(key(ownerProcess, ownerPage), -1L);
+            // Si no se pudo determinar dueño, elegir este frame directamente
+            if (ownerProcess == null || ownerPage == null) {
+                return frame.getId();
             }
+
+            // Obtener timestamp (0 si nunca fue accedida)
+            long lastAccess = accessTime.getOrDefault(key(ownerProcess, ownerPage), 0L);
 
             if (victim == null || lastAccess < oldestTime) {
                 victim = frame.getId();
