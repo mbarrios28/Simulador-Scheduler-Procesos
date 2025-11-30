@@ -1,10 +1,11 @@
-import scheduler.Scheduler;
-import process.Process;
-import process.Burst;
-import process.BurstResource;
+import java.util.ArrayList;
+
 import memory.MemoryManager;
 import memory.algoritmos.FIFO;
-import java.util.ArrayList;
+import process.Burst;
+import process.BurstResource;
+import process.Process;
+import scheduler.Scheduler;
 
 public class App {
     // Helper para crear ráfagas: CPU -> IO -> CPU
@@ -26,7 +27,7 @@ public class App {
         // --- 1. CONFIGURACIÓN MEMORIA LIMITADA ---
         // Creamos una memoria MUY PEQUEÑA (Solo 4 Marcos).
         // Esto es crucial para forzar la competencia y los fallos de página.
-        MemoryManager memory = new MemoryManager(4, new FIFO()); 
+        MemoryManager memory = new MemoryManager(7, new FIFO()); 
         scheduler.setMemoryManager(memory);
         
         // Usamos Round Robin para ver la alternancia de procesos

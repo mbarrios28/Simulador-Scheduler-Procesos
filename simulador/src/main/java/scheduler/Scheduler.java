@@ -1,14 +1,15 @@
 package scheduler;
 
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+
+import memory.MemoryManager;
 import process.Process;
 import process.ProcessState;
-import threads.ProcessThread;
-import threads.IOManager;
-import memory.MemoryManager;
 import synchronization.SyncManager;
-import java.util.LinkedList;
-import java.util.Collections;
-import java.util.List;
+import threads.IOManager;
+import threads.ProcessThread;
 
 public class Scheduler {
     public enum Algorithm { FCFS, SJF, RR }
@@ -72,76 +73,93 @@ public class Scheduler {
     private void dispatch() {
         syncManager.acquireGlobalLock();
         try {
-            if (currentThread == null && !readyQueue.isEmpty()) {
-                ProcessThread selectedThread = null;
-                
-                synchronized (readyQueue) {
-                    if (readyQueue.isEmpty()) return;
+            // Si ya hay proceso ejecutándose, no despachar otro
+            if (currentThread != null) {
+                return;
+            }
 
-                    switch (currentAlgorithm) {
-                        case FCFS:
-                        case RR:
-                            selectedThread = readyQueue.get(0);
-                            break;
-                        case SJF:
-                            int minTime = Integer.MAX_VALUE;
-                            int selectedIndex = -1;
-                            for (int i = 0; i < readyQueue.size(); i++) {
-                                ProcessThread thread = readyQueue.get(i);
-                                int remaining = thread.getProcess().getBurst().getTime_remaining();
-                                if (remaining < minTime) {
-                                    minTime = remaining;
-                                    selectedThread = thread;
-                                    selectedIndex = i;
-                                }
-                            }
-                            if (selectedIndex != -1) selectedThread = readyQueue.get(selectedIndex);
-                            break;
-                    }
+            ProcessThread selectedThread = null;
+
+            // --- 1) Seleccionar y EXTRAER atómicamente ---
+            synchronized (readyQueue) {
+                if (readyQueue.isEmpty()) {
+                    return; // nada para despachar
                 }
 
-                if (selectedThread != null) {
-                    Process p = selectedThread.getProcess();
+                switch (currentAlgorithm) {
+                    case FCFS:
+                    case RR:
+                        // Extraer el primer elemento de manera atómica
+                        selectedThread = readyQueue.remove(0);
+                        break;
 
-                    // --- INTEGRACIÓN MEMORIA ---
-                    if (memoryManager != null) {
-                        int missingPage = memoryManager.ensurePages(p);
-                        if (missingPage != -1) {
-                            System.out.println("[T=" + tiempoGlobal + "] PAGE FAULT: " + p.getPID() + " requiere Pagina " + missingPage);
-                            synchronized (readyQueue) {
-                                readyQueue.remove(selectedThread);
+                    case SJF:
+                        int minTime = Integer.MAX_VALUE;
+                        int minIndex = -1;
+
+                        for (int i = 0; i < readyQueue.size(); i++) {
+                            ProcessThread t = readyQueue.get(i);
+                            int remaining = t.getProcess().getBurst().getTime_remaining();
+                            if (remaining < minTime) {
+                                minTime = remaining;
+                                minIndex = i;
                             }
-                            ioManager.startPageFault(p, missingPage, memoryManager, selectedThread);
-                            return; 
                         }
-                    }
 
-                    synchronized (readyQueue) {
-                        if (readyQueue.contains(selectedThread)) {
-                            readyQueue.remove(selectedThread);
-                        } else {
-                            return;
+                        if (minIndex != -1) {
+                            selectedThread = readyQueue.remove(minIndex); // extracción segura
                         }
-                    }
-
-                    currentThread = selectedThread;
-                    
-                    syncManager.acquireProcessLock(p.getPID());
-                    try {
-                        if (p.getT_start() == -1) p.setT_start(tiempoGlobal);
-                        p.setState(ProcessState.RUNNING);
-                    } finally {
-                        syncManager.releaseProcessLock(p.getPID());
-                    }
-                    
-                    currentQuantumUsed = 0;
-                    System.out.println("[T=" + tiempoGlobal + "] DISPATCH (" + currentAlgorithm + "): " + p.getPID());
+                        break;
                 }
             }
+
+            // Nada seleccionado
+            if (selectedThread == null)
+                return;
+
+            Process p = selectedThread.getProcess();
+
+            // --- 2) Integración con memoria (Carga Total) ---
+            if (memoryManager != null) {
+                boolean ok = memoryManager.ensurePages(p);
+                if (!ok) {
+                    System.out.println("[T=" + tiempoGlobal + "] BLOQUEO MEM: " + p.getPID());
+
+                    // Bloquear proceso por memoria
+                    p.setState(ProcessState.BLOCKED_MEM);
+
+                    // REENVIAR AL IOManager para cargar páginas
+                    ioManager.startFullLoadFault(p, memoryManager, selectedThread);
+                    return;
+                }
+            }
+
+            // --- 3) Arrancar hilo solo una vez ---
+            if (!selectedThread.isAlive()) {
+                selectedThread.start();
+            }
+
+            // --- 4) Asignar como proceso en CPU ---
+            currentThread = selectedThread;
+            currentQuantumUsed = 0; // Reset quantum para nuevo proceso
+
+            syncManager.acquireProcessLock(p.getPID());
+            try {
+                if (p.getT_start() == -1) {
+                    p.setT_start(tiempoGlobal);
+                }
+                p.setState(ProcessState.RUNNING);
+            } finally {
+                syncManager.releaseProcessLock(p.getPID());
+            }
+
+            System.out.println("[T=" + tiempoGlobal + "] DISPATCH (" + currentAlgorithm + "): " + p.getPID());
+
         } finally {
             syncManager.releaseGlobalLock();
         }
     }
+
 
     public boolean runOneUnit() {
         System.out.println("\n--- CICLO T=" + tiempoGlobal + " ---");

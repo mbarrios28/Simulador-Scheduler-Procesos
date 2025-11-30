@@ -1,13 +1,14 @@
 package memory;
 
-import memory.algoritmos.ReplacementAlgorithm;
-import synchronization.SyncManager;
-import process.Process;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+
+import memory.algoritmos.ReplacementAlgorithm;
+import process.Process;
+import synchronization.SyncManager;
 
 public class MemoryManager {
     private List<Frame> physicalMemory;
@@ -252,8 +253,10 @@ public class MemoryManager {
         syncManager.acquireGlobalLock();
         try {
             PageTable pt = processPageTables.get(processId);
-            if (pt == null)
+            if (pt == null){
+                System.out.println("No se pudieron cargar las páginas, proceso bloqueado");
                 return false;
+            }
 
             int totalPages = pt.getTotalPages();
 
@@ -262,6 +265,7 @@ public class MemoryManager {
                 if (!isPageLoaded(processId, i)) {
                     boolean success = loadPage(processId, i);
                     if (!success) {
+                        System.out.println("No se pudieron cargar las páginas, proceso bloqueado");
                         return false;
                     }
                 }

@@ -1,11 +1,16 @@
 package threads;
 
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+
+import memory.MemoryManager;
 import process.Process;
 import process.ProcessState;
 import scheduler.Scheduler;
-import memory.MemoryManager;
 import synchronization.SyncManager;
-import java.util.concurrent.*;
 
 public class IOManager {
     private final ScheduledExecutorService ioExecutor;
@@ -71,7 +76,7 @@ public class IOManager {
     // --- NUEVO: GESTIÓN DE FALLOS DE PÁGINA (PAGE FAULT) ---
     public void startPageFault(Process process, int pageNumber, MemoryManager memory, ProcessThread thread) {
         String pid = process.getPID();
-        int delay = 2; 
+        int delay = 0; 
         
         syncManager.acquireProcessLock(pid);
         try {
@@ -115,4 +120,50 @@ public class IOManager {
         ioExecutor.shutdownNow();
         System.out.println("[IOManager] Apagado");
     }
+    // --- NUEVO: FALLO DE MEMORIA CON CARGA TOTAL ---
+    public void startFullLoadFault(Process process, MemoryManager memory, ProcessThread thread) {
+        String pid = process.getPID();
+
+        // Tiempo total simulado para cargar todas las páginas
+        // Puedes cambiarlo: por ejemplo = process.getPages()
+        int delay = 1; // 1 segundo para simular carga completa
+
+        syncManager.acquireProcessLock(pid);
+        try {
+            System.out.println("[IOManager-MEM] FULL LOAD FAULT: Cargando TODAS las páginas de " + pid);
+
+            // Programar la "carga"
+            ScheduledFuture<?> future = ioExecutor.schedule(() -> {
+
+                boolean loaded = memory.ensurePages(process);
+
+                syncManager.acquireProcessLock(pid);
+                try {
+                    if (loaded) {
+                        System.out.println("[IOManager-MEM] Carga completa finalizada para " + pid);
+                        process.setState(ProcessState.READY);
+                        scheduler.addProcessThread(thread);
+                    } else {
+                        System.err.println("[IOManager-MEM] Error crítico: no se pudo cargar la memoria de " + pid);
+                        process.setState(ProcessState.TERMINATED);
+                    }
+                } finally {
+                    syncManager.releaseProcessLock(pid);
+                }
+
+                ioOperations.remove(pid + "_FULL");
+
+            }, delay * 1000L, TimeUnit.MILLISECONDS);
+
+            ioOperations.put(pid + "_FULL", future);
+
+            // Estado mientras se carga memo completa
+            try { process.setState(ProcessState.valueOf("BLOCKED_MEM")); }
+            catch (Exception e) { process.setState(ProcessState.BLOCKED_IO); }
+
+        } finally {
+            syncManager.releaseProcessLock(pid);
+        }
+    }
+
 }
