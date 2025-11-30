@@ -126,7 +126,7 @@ public class IOManager {
 
         // Tiempo total simulado para cargar todas las páginas
         // Puedes cambiarlo: por ejemplo = process.getPages()
-        int delay = 1; // 1 segundo para simular carga completa
+        int delay = 0; // 1 segundo para simular carga completa
 
         syncManager.acquireProcessLock(pid);
         try {

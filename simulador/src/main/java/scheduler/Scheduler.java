@@ -12,7 +12,7 @@ import threads.IOManager;
 import threads.ProcessThread;
 
 public class Scheduler {
-    public enum Algorithm { FCFS, SJF, RR }
+    public enum Algorithm { FCFS, SJF, RR, PRIORITY }
 
     private int tiempoGlobal = 0;
     private final List<ProcessThread> readyQueue; 
@@ -73,63 +73,53 @@ public class Scheduler {
     private void dispatch() {
         syncManager.acquireGlobalLock();
         try {
-            // Si ya hay proceso ejecutándose, no despachar otro
-            if (currentThread != null) {
-                return;
-            }
-
             ProcessThread selectedThread = null;
 
-            // --- 1) Seleccionar y EXTRAER atómicamente ---
+            // --- 1) Seleccionar el mejor candidato de la cola ---
             synchronized (readyQueue) {
                 if (readyQueue.isEmpty()) {
-                    return; // nada para despachar
+                    return;
                 }
 
                 switch (currentAlgorithm) {
+                    case SJF:
+                        selectedThread = selectSJFPreemptive();
+                        break;
+                    case PRIORITY:
+                        selectedThread = selectPriorityPreemptive();
+                        break;
                     case FCFS:
                     case RR:
-                        // Extraer el primer elemento de manera atómica
                         selectedThread = readyQueue.remove(0);
-                        break;
-
-                    case SJF:
-                        int minTime = Integer.MAX_VALUE;
-                        int minIndex = -1;
-
-                        for (int i = 0; i < readyQueue.size(); i++) {
-                            ProcessThread t = readyQueue.get(i);
-                            int remaining = t.getProcess().getBurst().getTime_remaining();
-                            if (remaining < minTime) {
-                                minTime = remaining;
-                                minIndex = i;
-                            }
-                        }
-
-                        if (minIndex != -1) {
-                            selectedThread = readyQueue.remove(minIndex); // extracción segura
-                        }
                         break;
                 }
             }
 
-            // Nada seleccionado
-            if (selectedThread == null)
+            if (selectedThread == null) {
                 return;
+            }
 
             Process p = selectedThread.getProcess();
+
+            // *** LOG DE DIAGNÓSTICO ***
+            System.out.println("[DEBUG] Scheduler seleccionó: " + p.getPID());
 
             // --- 2) Integración con memoria (Carga Total) ---
             if (memoryManager != null) {
                 boolean ok = memoryManager.ensurePages(p);
+                
+                // *** LOG DE DIAGNÓSTICO ***
+                System.out.println("[DEBUG] MemoryManager.ensurePages(" + p.getPID() + ") = " + ok);
+                
                 if (!ok) {
-                    System.out.println("[T=" + tiempoGlobal + "] BLOQUEO MEM: " + p.getPID());
-
-                    // Bloquear proceso por memoria
+                    System.out.println("[T=" + tiempoGlobal + "] BLOQUEO MEM: " + p.getPID() + 
+                                    " - ESPERANDO CARGA COMPLETA");
+                    
+                    // *** CORRECCIÓN: NO continuar con otro proceso ***
                     p.setState(ProcessState.BLOCKED_MEM);
-
-                    // REENVIAR AL IOManager para cargar páginas
                     ioManager.startFullLoadFault(p, memoryManager, selectedThread);
+                    
+                    // *** IMPORTANTE: Salir sin despachar otro proceso ***
                     return;
                 }
             }
@@ -141,7 +131,7 @@ public class Scheduler {
 
             // --- 4) Asignar como proceso en CPU ---
             currentThread = selectedThread;
-            currentQuantumUsed = 0; // Reset quantum para nuevo proceso
+            currentQuantumUsed = 0;
 
             syncManager.acquireProcessLock(p.getPID());
             try {
@@ -160,16 +150,150 @@ public class Scheduler {
         }
     }
 
+    private ProcessThread selectSJFPreemptive() {
+        // Encontrar el proceso con menor tiempo restante en la cola
+        int shortestTime = Integer.MAX_VALUE;
+        int selectedIndex = -1;
+        
+        System.out.println("[DISPATCH] SJF-APROPITIVO evaluando cola:");
+        for (int i = 0; i < readyQueue.size(); i++) {
+            ProcessThread t = readyQueue.get(i);
+            int remaining = t.getProcess().getBurst().getTime_remaining();
+            System.out.println("  - " + t.getProcess().getPID() + " tiempo_restante: " + remaining);
+            
+            if (remaining < shortestTime) {
+                shortestTime = remaining;
+                selectedIndex = i;
+            }
+        }
+        
+        if (selectedIndex == -1) return null;
+        
+        ProcessThread selectedCandidate = readyQueue.get(selectedIndex);
+        
+        // Comparar con proceso actual (si existe)
+        if (currentThread != null && currentThread.getProcess() != null) {
+            int currentRemaining = currentThread.getProcess().getBurst().getTime_remaining();
+            int candidateRemaining = selectedCandidate.getProcess().getBurst().getTime_remaining();
+            
+            System.out.println("[DISPATCH] SJF-APROPITIVO comparando: Actual=" + 
+                            currentThread.getProcess().getPID() + "(" + currentRemaining + 
+                            ") vs Candidato=" + selectedCandidate.getProcess().getPID() + 
+                            "(" + candidateRemaining + ")");
+            
+            if (candidateRemaining < currentRemaining) {
+                System.out.println("[DISPATCH] SJF-APROPITIVO: ¡APROPIACIÓN! " + 
+                                selectedCandidate.getProcess().getPID() + " expulsa a " + 
+                                currentThread.getProcess().getPID());
+                
+                // Expulsar proceso actual
+                preemptCurrentProcess();
+                
+                // *** CORRECCIÓN: Re-seleccionar después de modificar la cola ***
+                return selectSJFPreemptive(); // Llamada recursiva para re-evaluar
+            } else {
+                System.out.println("[DISPATCH] SJF-APROPITIVO: Mantener actual " + currentThread.getProcess().getPID());
+                return null;
+            }
+        }
+        
+        // No hay proceso actual, tomar el más corto
+        ProcessThread selected = readyQueue.remove(selectedIndex);
+        System.out.println("[DISPATCH] SJF-APROPITIVO seleccionado: " + selected.getProcess().getPID());
+        return selected;
+    }
+
+    private ProcessThread selectPriorityPreemptive() {
+        // Encontrar el proceso con mayor prioridad en la cola
+        int highestPriority = Integer.MAX_VALUE;
+        int selectedIndex = -1;
+        
+        System.out.println("[DISPATCH] PRIORITY-APROPITIVO evaluando cola:");
+        for (int i = 0; i < readyQueue.size(); i++) {
+            ProcessThread t = readyQueue.get(i);
+            int priority = t.getProcess().getPriority();
+            System.out.println("  - " + t.getProcess().getPID() + " prioridad: " + priority);
+            
+            if (priority < highestPriority) {
+                highestPriority = priority;
+                selectedIndex = i;
+            }
+        }
+        
+        if (selectedIndex == -1) return null;
+        
+        ProcessThread selectedCandidate = readyQueue.get(selectedIndex);
+        
+        // Comparar con proceso actual (si existe)
+        if (currentThread != null && currentThread.getProcess() != null) {
+            int currentPriority = currentThread.getProcess().getPriority();
+            int candidatePriority = selectedCandidate.getProcess().getPriority();
+            
+            System.out.println("[DISPATCH] PRIORITY-APROPITIVO comparando: Actual=" + 
+                            currentThread.getProcess().getPID() + "(" + currentPriority + 
+                            ") vs Candidato=" + selectedCandidate.getProcess().getPID() + 
+                            "(" + candidatePriority + ")");
+            
+            if (candidatePriority < currentPriority) {
+                System.out.println("[DISPATCH] PRIORITY-APROPITIVO: ¡APROPIACIÓN! " + 
+                                selectedCandidate.getProcess().getPID() + " expulsa a " + 
+                                currentThread.getProcess().getPID());
+                
+                // Expulsar proceso actual
+                preemptCurrentProcess();
+                
+                // *** CORRECCIÓN: Re-seleccionar después de modificar la cola ***
+                return selectPriorityPreemptive(); // Llamada recursiva
+            } else {
+                System.out.println("[DISPATCH] PRIORITY-APROPITIVO: Mantener actual " + currentThread.getProcess().getPID());
+                return null;
+            }
+        }
+        
+        // No hay proceso actual, tomar el de mayor prioridad
+        ProcessThread selected = readyQueue.remove(selectedIndex);
+        System.out.println("[DISPATCH] PRIORITY-APROPITIVO seleccionado: " + selected.getProcess().getPID());
+        return selected;
+    }
+
+    /**
+     * Método para expulsar el proceso actual
+     */
+    private void preemptCurrentProcess() {
+        if (currentThread == null) return;
+        
+        // Guardar referencia antes de poner en null
+        ProcessThread threadToPreempt = currentThread;
+        Process p = threadToPreempt.getProcess();
+        
+        syncManager.acquireProcessLock(p.getPID());
+        try {
+            p.setState(ProcessState.READY);
+            
+            // Agregar al inicio de la cola para que tenga preferencia
+            synchronized (readyQueue) {
+                readyQueue.add(0, threadToPreempt);
+            }
+            
+            System.out.println("[T=" + tiempoGlobal + "] PREEMPT: " + p.getPID() + " expulsado y vuelto a cola");
+            
+            currentThread = null;
+            currentQuantumUsed = 0;
+        } finally {
+            syncManager.releaseProcessLock(p.getPID()); // Usar p.getPID() en lugar de currentThread
+        }
+    }
 
     public boolean runOneUnit() {
         System.out.println("\n--- CICLO T=" + tiempoGlobal + " ---");
         
+        // Para algoritmos apropiativos, dispatch verifica si hay mejores candidatos
         dispatch(); 
 
         if (currentThread != null) {
             Process p = currentThread.getProcess();
             
-            // --- CORRECCIÓN: Despertar al hilo SIEMPRE ---
+            // Ejecutar una unidad del proceso actual
             currentThread.startExecution();
             try { Thread.sleep(20); } catch (InterruptedException e) {}
 
@@ -194,7 +318,9 @@ public class Scheduler {
                         addProcessThread(currentThread);
                     }
                     currentThread = null;
+                    currentQuantumUsed = 0;
                 } else {
+                    // Lógica de quantum solo para RR
                     if (currentAlgorithm == Algorithm.RR) {
                         currentQuantumUsed++;
                         if (currentQuantumUsed >= quantum) {
@@ -205,6 +331,7 @@ public class Scheduler {
                             currentQuantumUsed = 0;
                         }
                     }
+                    // Para SJF y PRIORITY apropiativos, la apropiación se maneja en dispatch()
                 }
             } finally {
                 syncManager.releaseProcessLock(p.getPID());
@@ -213,6 +340,7 @@ public class Scheduler {
             System.out.println("[T=" + tiempoGlobal + "] IDLE");
         }
         
+        // Actualizar tiempos de espera para procesos en cola
         synchronized (readyQueue) {
             for (ProcessThread thread : readyQueue) {
                 thread.getProcess().setT_wait(thread.getProcess().getT_wait() + 1);

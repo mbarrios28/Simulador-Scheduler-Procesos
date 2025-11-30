@@ -42,9 +42,13 @@ public class MemoryManager {
     public void createProcess(String processId, int totalPages) {
         syncManager.acquireGlobalLock();
         try {
+            System.out.println("[MemoryManager-DEBUG] createProcess INICIO: " + processId + ", páginas: " + totalPages);
+            
             PageTable pageTable = new PageTable(processId, totalPages);
             processPageTables.put(processId, pageTable);
-            System.out.println("Proceso " + processId + " creado con " + totalPages + " páginas.");
+            
+            System.out.println("[MemoryManager-DEBUG] createProcess COMPLETADO: " + processId);
+            System.out.println("[MemoryManager-DEBUG] Procesos después de crear: " + processPageTables.keySet());
         } finally {
             syncManager.releaseGlobalLock();
         }
@@ -226,53 +230,77 @@ public class MemoryManager {
         }
     }
 
-    //  Total Loading 
     public boolean ensurePages(Process process) {
         String pid = process.getPID();
         int totalPages = process.getPages();
+
+        System.out.println("[MemoryManager-DEBUG] ensurePages INICIO para: " + pid);
 
         // 1. Asegurar tabla de procesos
         boolean exists;
         syncManager.acquireGlobalLock();
         try {
             exists = processPageTables.containsKey(pid);
+            System.out.println("[MemoryManager-DEBUG] Proceso " + pid + " existe en tabla: " + exists);
         } finally {
             syncManager.releaseGlobalLock();
         }
 
         if (!exists) {
+            System.out.println("[MemoryManager-DEBUG] Creando proceso: " + pid);
             createProcess(pid, totalPages);
+            
+            // *** VERIFICAR INMEDIATAMENTE DESPUÉS DE CREAR ***
+            syncManager.acquireGlobalLock();
+            try {
+                boolean existsAfterCreate = processPageTables.containsKey(pid);
+                System.out.println("[MemoryManager-DEBUG] Después de createProcess, existe: " + existsAfterCreate);
+            } finally {
+                syncManager.releaseGlobalLock();
+            }
         }
 
-        // 2. Cargar todas las páginas (con reemplazo si es necesario)
-        // loadAllPages ya verifica qué páginas faltan
-        return loadAllPages(pid);
+        // 2. Cargar todas las páginas
+        System.out.println("[MemoryManager-DEBUG] Llamando loadAllPages para: " + pid);
+        boolean result = loadAllPages(pid);
+        System.out.println("[MemoryManager-DEBUG] ensurePages RESULTADO para " + pid + ": " + result);
+        
+        return result;
     }
 
     public boolean loadAllPages(String processId) {
+        System.out.println("[MemoryManager-DEBUG] loadAllPages INICIO para: " + processId);
+        
         syncManager.acquireGlobalLock();
         try {
             PageTable pt = processPageTables.get(processId);
+            System.out.println("[MemoryManager-DEBUG] PageTable obtenida para " + processId + ": " + (pt != null ? "NO-NULL" : "NULL"));
+            
             if (pt == null){
-                System.out.println("No se pudieron cargar las páginas, proceso bloqueado");
+                System.out.println("[MemoryManager-ERROR] PageTable es NULL para: " + processId);
+                System.out.println("[MemoryManager-ERROR] Procesos en tabla: " + processPageTables.keySet());
                 return false;
             }
 
             int totalPages = pt.getTotalPages();
+            System.out.println("[MemoryManager-DEBUG] Total páginas a cargar: " + totalPages);
 
-            // Intentar cargar todas las páginas (1,2,3,4,5...)
+            // Intentar cargar todas las páginas
             for (int i = 0; i < totalPages; i++) {
                 if (!isPageLoaded(processId, i)) {
+                    System.out.println("[MemoryManager-DEBUG] Cargando página " + i + " para " + processId);
                     boolean success = loadPage(processId, i);
                     if (!success) {
-                        System.out.println("No se pudieron cargar las páginas, proceso bloqueado");
+                        System.out.println("[MemoryManager-ERROR] Falló carga de página " + i + " para " + processId);
                         return false;
                     }
+                } else {
+                    System.out.println("[MemoryManager-DEBUG] Página " + i + " ya cargada para " + processId);
                 }
             }
 
-            System.out.println("Todas las páginas de " + processId + " cargadas exitosamente.");
-            return true; // exito
+            System.out.println("[MemoryManager-DEBUG] loadAllPages ÉXITO para: " + processId);
+            return true;
         } finally {
             syncManager.releaseGlobalLock();
         }

@@ -23,34 +23,29 @@ public class App {
         System.out.println("==========================================\n");
 
         Scheduler scheduler = new Scheduler();
-        
+
         // --- 1. CONFIGURACIÓN MEMORIA LIMITADA ---
-        // Creamos una memoria MUY PEQUEÑA (Solo 4 Marcos).
-        // Esto es crucial para forzar la competencia y los fallos de página.
         MemoryManager memory = new MemoryManager(7, new FIFO()); 
         scheduler.setMemoryManager(memory);
-        
-        // Usamos Round Robin para ver la alternancia de procesos
-        scheduler.setAlgorithm(Scheduler.Algorithm.RR);
-        scheduler.setQuantum(3);
 
-        // --- 2. DEFINICIÓN DE PROCESOS ---
-        
-        // P1: Proceso "Pesado". Necesitará cargar varias páginas a lo largo de su vida.
-        // Ráfaga larga de CPU (10) asegura que pida varias páginas (cambia cada 3 ciclos).
-        // Páginas totales requeridas: 4
-        Process p1 = new Process("P1", 0, createBursts(10, 2, 5), 1, 4); 
-        
-        // P2: Proceso que llega después para robar la CPU cuando P1 se bloquee por memoria.
-        // Páginas totales requeridas: 4
-        Process p2 = new Process("P2", 1, createBursts(5, 1, 2), 2, 4); 
-        
-        // NOTA: P1(4 pags) + P2(4 pags) = 8 páginas necesarias.
-        // Memoria tiene 4 marcos. ¡Habrá guerra por la memoria (Reemplazos)!
+        // Cambiamos a PRIORITY para ver el efecto de las prioridades
+        scheduler.setAlgorithm(Scheduler.Algorithm.PRIORITY);
+
+        // --- DEFINICIÓN DE PROCESOS CON DIFERENTES PRIORIDADES ---
+        // Menor número = Mayor prioridad (0 es la más alta)
+        Process p1 = new Process("P1", 0, createBursts(8, 2, 4), 2, 3);   // Prioridad Media (2)
+        Process p2 = new Process("P2", 2, createBursts(6, 3, 3), 1, 3);   // Prioridad Alta (1) - llega en T=2
+        Process p3 = new Process("P3", 4, createBursts(4, 1, 2), 0, 3);   // Prioridad MÁXIMA (0) - llega en T=4
+        Process p4 = new Process("P4", 6, createBursts(10, 2, 5), 3, 3);  // Prioridad Baja (3) - llega en T=6
+
+        // NOTA: Memoria total requerida = P1(6) + P2(5) + P3(4) + P4(3) = 18 páginas
+        // Memoria disponible: 7 marcos → ¡Fuerte competencia y fallos de página garantizados!
 
         ArrayList<Process> incoming = new ArrayList<>();
         incoming.add(p1);
         incoming.add(p2);
+        incoming.add(p3);
+        incoming.add(p4);
 
         System.out.println("--- INICIO SIMULACIÓN (Monitorizando Fallos de Página) ---\n");
         
