@@ -25,13 +25,13 @@ public class MemoryManager {
         freeFrames = new java.util.LinkedList<>();
         processPageTables = new java.util.HashMap<>();
         syncManager = SyncManager.getInstance();
-        
-        for(int i = 0; i < totalFrames; i++) {
+
+        for (int i = 0; i < totalFrames; i++) {
             Frame frame = new Frame(i);
             physicalMemory.add(frame);
             freeFrames.add(frame);
         }
-        
+
         this.replacementAlgorithm = algorithm;
         this.pageFaultCount = new HashMap<>();
         this.replacementCount = new HashMap<>();
@@ -72,26 +72,26 @@ public class MemoryManager {
                     System.out.println("Página " + pageNumber + " del proceso " + processId + " ya está en memoria.");
                     replacementAlgorithm.onPageAccess(processId, pageNumber);
                     return true;
-                }  
-                
+                }
+
                 Frame targetFrame;
                 pageFaultCount.put(processId, pageFaultCount.getOrDefault(processId, 0) + 1);
 
                 if (freeFrames.isEmpty()) {
-                    // REEMPLAZO 
+                    // REEMPLAZO
                     Integer victimFrameId = replacementAlgorithm.chooseVictimFrame(physicalMemory, processPageTables);
-                    
+
                     if (victimFrameId == null) {
                         System.out.println("ERROR: No se pudo elegir víctima para reemplazo");
                         return false;
                     }
-                    
+
                     targetFrame = physicalMemory.get(victimFrameId);
-                    
+
                     String victimProcessId = null;
                     PageTable victimPageTable = null;
                     Integer victimPageNumber = null;
-                    
+
                     for (Map.Entry<String, PageTable> entry : processPageTables.entrySet()) {
                         Integer pn = entry.getValue().findPageInFrame(victimFrameId);
                         if (pn != null) {
@@ -101,33 +101,33 @@ public class MemoryManager {
                             break;
                         }
                     }
-                    
+
                     if (victimProcessId == null || victimPageTable == null || victimPageNumber == null) {
                         System.out.println("ERROR: No se encontró la página víctima en tablas de páginas");
                         return false;
                     }
-                    
-                    System.out.println("REEMPLAZO: Expulsando " + victimProcessId + "-Page" + victimPageNumber + 
-                                      " del Frame " + victimFrameId);
-                
+
+                    System.out.println("REEMPLAZO: Expulsando " + victimProcessId + "-Page" + victimPageNumber +
+                            " del Frame " + victimFrameId);
+
                     victimPageTable.pageUnloaded(victimPageNumber);
                     replacementAlgorithm.onPageUnloaded(victimProcessId, victimPageNumber, victimFrameId);
                     targetFrame.free();
                     replacementCount.put(processId, replacementCount.getOrDefault(processId, 0) + 1);
-                    
+
                 } else {
                     targetFrame = freeFrames.poll();
                 }
-            
+
                 targetFrame.occupy();
                 PageTable pageTable = processPageTables.get(processId);
                 pageTable.pageLoaded(pageNumber, targetFrame.getId());
                 replacementAlgorithm.onPageLoaded(processId, pageNumber, targetFrame.getId());
-                
-                System.out.println("SUCCESS: Página " + pageNumber + " del proceso " + processId + 
-                                " cargada en Frame " + targetFrame.getId());
+
+                System.out.println("SUCCESS: Página " + pageNumber + " del proceso " + processId +
+                        " cargada en Frame " + targetFrame.getId());
                 return true;
-                
+
             } finally {
                 syncManager.releaseProcessLock(processId);
             }
@@ -174,7 +174,7 @@ public class MemoryManager {
             System.out.println("\n=== MEMORY STATUS ===");
             for (Frame frame : physicalMemory) {
                 if (frame.isOccupied()) {
-                    System.out.println("Frame " + frame.getId() + ": Ocupado"); 
+                    System.out.println("Frame " + frame.getId() + ": Ocupado");
                 } else {
                     System.out.println("Frame " + frame.getId() + ": FREE");
                 }
@@ -184,7 +184,7 @@ public class MemoryManager {
             syncManager.releaseGlobalLock();
         }
     }
-    
+
     public void printAllPageTables() {
         syncManager.acquireGlobalLock();
         try {
@@ -217,8 +217,8 @@ public class MemoryManager {
             System.out.println("\n=== ESTADÍSTICAS DE MEMORIA ===");
             System.out.println("Algoritmo: " + replacementAlgorithm.getName());
             for (String pid : processPageTables.keySet()) {
-                System.out.println(pid + " - Fallos: " + getPageFaults(pid) + 
-                                  ", Reemplazos: " + getReplacements(pid));
+                System.out.println(pid + " - Fallos: " + getPageFaults(pid) +
+                        ", Reemplazos: " + getReplacements(pid));
             }
         } finally {
             syncManager.releaseGlobalLock();
@@ -238,7 +238,7 @@ public class MemoryManager {
         } finally {
             syncManager.releaseGlobalLock();
         }
-        
+
         if (!exists) {
             createProcess(pid, totalPages);
         }
@@ -249,9 +249,35 @@ public class MemoryManager {
         // 3. Verificar si está cargada
         if (isPageLoaded(pid, paginaNecesaria)) {
             replacementAlgorithm.onPageAccess(pid, paginaNecesaria);
-            return -1; 
+            return -1;
         }
 
-        return paginaNecesaria; 
+        return paginaNecesaria;
+    }
+
+    public boolean loadAllPages(String processId) {
+        syncManager.acquireGlobalLock();
+        try {
+            PageTable pt = processPageTables.get(processId);
+            if (pt == null)
+                return false;
+
+            int totalPages = pt.getTotalPages();
+
+            // Intentar cargar todas las páginas (1,2,3,4,5...)
+            for (int i = 0; i < totalPages; i++) {
+                if (!isPageLoaded(processId, i)) {
+                    boolean success = loadPage(processId, i);
+                    if (!success) {
+                        return false; 
+                    }
+                }
+            }
+
+            System.out.println("Todas las páginas de " + processId + " cargadas exitosamente.");
+            return true; // exito
+        } finally {
+            syncManager.releaseGlobalLock();
+        }
     }
 }
