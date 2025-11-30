@@ -14,7 +14,8 @@ import java.util.Map;
  *
  * Nota: Para ser verdaderamente "óptimo" se requiere conocer la
  * secuencia futura de accesos. Este algoritmo permite (opcionalmente)
- * configurar dicha secuencia por proceso mediante {@link #setFutureAccessSequence}.
+ * configurar dicha secuencia por proceso mediante
+ * {@link #setFutureAccessSequence}.
  * Si no se configura, hará un fallback razonable: asumirá que ninguna
  * página se volverá a usar y elegirá el primer frame ocupado.
  */
@@ -26,7 +27,8 @@ public class Optimo implements ReplacementAlgorithm {
 	private final Map<String, List<Integer>> futureByProcess = new HashMap<>();
 
 	/**
-	 * Configura o reemplaza la secuencia completa de accesos futuros para un proceso.
+	 * Configura o reemplaza la secuencia completa de accesos futuros para un
+	 * proceso.
 	 * La lista debe contener, en orden, los números de página que ese proceso
 	 * accederá a partir de ahora.
 	 */
@@ -65,26 +67,31 @@ public class Optimo implements ReplacementAlgorithm {
 		return Integer.MAX_VALUE; // no vuelve a usarse
 	}
 
+	/**
+	 * Consume (elimina) una ocurrencia de la secuencia futura cuando se accede a una página.
+	 * Solo elimina si el acceso coincide con el primer elemento de la secuencia,
+	 * manteniendo la sincronización entre accesos reales y predicción futura.
+	 * 
+	 * @param processId ID del proceso
+	 * @param pageNumber Número de página accedida
+	 */
 	private void consumeOneOccurrence(String processId, int pageNumber) {
 		List<Integer> seq = futureByProcess.get(processId);
-		if (seq == null || seq.isEmpty()) return;
-		// Si el primero coincide, quítalo (caso típico si los accesos van sincronizados)
-		if (seq.get(0) == pageNumber) {
-			seq.remove(0);
+		if (seq == null || seq.isEmpty())
 			return;
+
+		// Solo consumir si coincide con el primer elemento (secuencia sincronizada)
+		if (seq.get(0).equals(pageNumber)) {
+			seq.remove(0);
 		}
-		// Si no, quitar la primera ocurrencia para mantener coherencia aproximada
-		for (int i = 0; i < seq.size(); i++) {
-			if (seq.get(i) == pageNumber) {
-				seq.remove(i);
-				return;
-			}
-		}
+		// Si no coincide, la secuencia está desincronizada o hay un error
+		// No consumir para evitar corrupción de la predicción futura
 	}
 
 	@Override
 	public Integer chooseVictimFrame(List<Frame> physicalMemory, Map<String, PageTable> processPageTables) {
-		if (physicalMemory == null || physicalMemory.isEmpty()) return null;
+		if (physicalMemory == null || physicalMemory.isEmpty())
+			return null;
 
 		// Si hay un frame libre, usarlo directamente (no se requiere víctima)
 		for (Frame frame : physicalMemory) {
