@@ -49,9 +49,10 @@ public class MemorySimulator {
 
         runScenario("LRU", new LRU(), null);
 
+       
         Map<String, List<Integer>> futuras = new HashMap<>();
-        futuras.put("P1", Arrays.asList(0, 1, 0, 2, 3));
-        futuras.put("P2", Arrays.asList(0, 1, 2));
+        futuras.put("P1", Arrays.asList(0, 1, 0, 2));  // P1 accede: 0, 1, luego 0 (HIT), luego 2
+        futuras.put("P2", Arrays.asList(0, 1));        // P2 accede: 0, luego 1
         runScenario("Óptimo", new Optimo(), futuras);
     }
 }
