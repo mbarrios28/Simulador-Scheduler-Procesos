@@ -2,6 +2,7 @@ package memory;
 
 import memory.algoritmos.ReplacementAlgorithm;
 import synchronization.SyncManager;
+import process.Process;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -74,7 +75,6 @@ public class MemoryManager {
                 }  
                 
                 Frame targetFrame;
-                // Incrementar contador de page faults
                 pageFaultCount.put(processId, pageFaultCount.getOrDefault(processId, 0) + 1);
 
                 if (freeFrames.isEmpty()) {
@@ -87,23 +87,18 @@ public class MemoryManager {
                     }
                     
                     targetFrame = physicalMemory.get(victimFrameId);
-                    // Expulsar la página víctima
+                    
                     String victimProcessId = null;
                     PageTable victimPageTable = null;
                     Integer victimPageNumber = null;
                     
                     for (Map.Entry<String, PageTable> entry : processPageTables.entrySet()) {
-                        syncManager.acquireProcessLock(entry.getKey());
-                        try {
-                            Integer pn = entry.getValue().findPageInFrame(victimFrameId);
-                            if (pn != null) {
-                                victimProcessId = entry.getKey();
-                                victimPageTable = entry.getValue();
-                                victimPageNumber = pn;
-                                break;
-                            }
-                        } finally {
-                            syncManager.releaseProcessLock(entry.getKey());
+                        Integer pn = entry.getValue().findPageInFrame(victimFrameId);
+                        if (pn != null) {
+                            victimProcessId = entry.getKey();
+                            victimPageTable = entry.getValue();
+                            victimPageNumber = pn;
+                            break;
                         }
                     }
                     
@@ -113,30 +108,20 @@ public class MemoryManager {
                     }
                     
                     System.out.println("REEMPLAZO: Expulsando " + victimProcessId + "-Page" + victimPageNumber + 
-                                  " del Frame " + victimFrameId);
+                                      " del Frame " + victimFrameId);
                 
-                    // Actualizar tabla de páginas de la víctima
                     victimPageTable.pageUnloaded(victimPageNumber);
-                    
-                    // Notificar al algoritmo
                     replacementAlgorithm.onPageUnloaded(victimProcessId, victimPageNumber, victimFrameId);
-                    
-                    // Liberar el frame
                     targetFrame.free();
-                    
-                    // Incrementar contador de reemplazos
                     replacementCount.put(processId, replacementCount.getOrDefault(processId, 0) + 1);
                     
                 } else {
                     targetFrame = freeFrames.poll();
                 }
             
-                // cargar la nueva página 
                 targetFrame.occupy();
                 PageTable pageTable = processPageTables.get(processId);
                 pageTable.pageLoaded(pageNumber, targetFrame.getId());
-
-                // Notificar al algoritmo
                 replacementAlgorithm.onPageLoaded(processId, pageNumber, targetFrame.getId());
                 
                 System.out.println("SUCCESS: Página " + pageNumber + " del proceso " + processId + 
@@ -151,7 +136,6 @@ public class MemoryManager {
         }
     }
 
-    // Resto de métodos con sincronización similar...
     public PageTable getPageTable(String processId) {
         syncManager.acquireProcessLock(processId);
         try {
@@ -167,7 +151,6 @@ public class MemoryManager {
             if (!frame.isOccupied()) {
                 return "FREE";
             }
-            // Buscar en todas las tablas cuál proceso tiene este frame asignado
             for (Map.Entry<String, PageTable> entry : processPageTables.entrySet()) {
                 syncManager.acquireProcessLock(entry.getKey());
                 try {
@@ -191,8 +174,7 @@ public class MemoryManager {
             System.out.println("\n=== MEMORY STATUS ===");
             for (Frame frame : physicalMemory) {
                 if (frame.isOccupied()) {
-                    String pageInfo = findPageInFrame(frame);
-                    System.out.println("Frame " + frame.getId() + ": " + pageInfo);
+                    System.out.println("Frame " + frame.getId() + ": Ocupado"); 
                 } else {
                     System.out.println("Frame " + frame.getId() + ": FREE");
                 }
@@ -241,5 +223,35 @@ public class MemoryManager {
         } finally {
             syncManager.releaseGlobalLock();
         }
+    }
+
+    // --- INTEGRACIÓN: Método ensurePages ---
+    public int ensurePages(Process process) {
+        String pid = process.getPID();
+        int totalPages = process.getPages();
+
+        // 1. Asegurar tabla de procesos
+        boolean exists;
+        syncManager.acquireGlobalLock();
+        try {
+            exists = processPageTables.containsKey(pid);
+        } finally {
+            syncManager.releaseGlobalLock();
+        }
+        
+        if (!exists) {
+            createProcess(pid, totalPages);
+        }
+
+        // 2. Calcular página necesaria
+        int paginaNecesaria = (process.getCpu_usage() / 3) % totalPages;
+
+        // 3. Verificar si está cargada
+        if (isPageLoaded(pid, paginaNecesaria)) {
+            replacementAlgorithm.onPageAccess(pid, paginaNecesaria);
+            return -1; 
+        }
+
+        return paginaNecesaria; 
     }
 }
