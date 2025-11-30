@@ -2,10 +2,94 @@ import scheduler.Scheduler;
 import process.Process;
 import process.Burst;
 import process.BurstResource;
+import memory.MemoryManager;
+import memory.algoritmos.FIFO;
 import java.util.ArrayList;
 
 public class App {
+    // Helper para crear ráfagas: CPU -> IO -> CPU
+    private static ArrayList<Burst> createBursts(int cpu1, int io, int cpu2) {
+        ArrayList<Burst> bursts = new ArrayList<>();
+        if (cpu1 > 0) bursts.add(new Burst(BurstResource.CPU, cpu1));
+        if (io > 0) bursts.add(new Burst(BurstResource.IO, io));
+        if (cpu2 > 0) bursts.add(new Burst(BurstResource.CPU, cpu2));
+        return bursts;
+    }
 
+    public static void main(String[] args) throws InterruptedException {
+        System.out.println("==========================================");
+        System.out.println("   PRUEBA MEDIA-SEMANA 3: GESTIÓN DE MEMORIA ");
+        System.out.println("==========================================\n");
+
+        Scheduler scheduler = new Scheduler();
+        
+        // --- 1. CONFIGURACIÓN MEMORIA LIMITADA ---
+        // Creamos una memoria MUY PEQUEÑA (Solo 4 Marcos).
+        // Esto es crucial para forzar la competencia y los fallos de página.
+        MemoryManager memory = new MemoryManager(4, new FIFO()); 
+        scheduler.setMemoryManager(memory);
+        
+        // Usamos Round Robin para ver la alternancia de procesos
+        scheduler.setAlgorithm(Scheduler.Algorithm.RR);
+        scheduler.setQuantum(3);
+
+        // --- 2. DEFINICIÓN DE PROCESOS ---
+        
+        // P1: Proceso "Pesado". Necesitará cargar varias páginas a lo largo de su vida.
+        // Ráfaga larga de CPU (10) asegura que pida varias páginas (cambia cada 3 ciclos).
+        // Páginas totales requeridas: 4
+        Process p1 = new Process("P1", 0, createBursts(10, 2, 5), 1, 4); 
+        
+        // P2: Proceso que llega después para robar la CPU cuando P1 se bloquee por memoria.
+        // Páginas totales requeridas: 4
+        Process p2 = new Process("P2", 1, createBursts(5, 1, 2), 2, 4); 
+        
+        // NOTA: P1(4 pags) + P2(4 pags) = 8 páginas necesarias.
+        // Memoria tiene 4 marcos. ¡Habrá guerra por la memoria (Reemplazos)!
+
+        ArrayList<Process> incoming = new ArrayList<>();
+        incoming.add(p1);
+        incoming.add(p2);
+
+        System.out.println("--- INICIO SIMULACIÓN (Monitorizando Fallos de Página) ---\n");
+        
+        boolean trabajoPendiente = true;
+        int maxCiclos = 50; 
+        
+        // --- 3. BUCLE DE SIMULACIÓN ---
+        while ((trabajoPendiente || !incoming.isEmpty()) && maxCiclos > 0) {
+            int tiempoActual = scheduler.getTiempoGlobal();
+            
+            // Simular Llegadas
+            for (int i = 0; i < incoming.size(); i++) {
+                Process p = incoming.get(i);
+                if (p.getT_arrival() <= tiempoActual) {
+                    System.out.println("\n[SISTEMA] LLEGADA: " + p.getPID());
+                    scheduler.addProcess(p);
+                    incoming.remove(i);
+                    i--;
+                }
+            }
+
+            // Ejecutar un ciclo del SO
+            trabajoPendiente = scheduler.runOneUnit();
+            
+            // Pausa para poder leer los logs en tiempo real
+            Thread.sleep(600); 
+            maxCiclos--;
+        }
+        
+        System.out.println("\n--- FIN SIMULACIÓN ---");
+        
+        // Reporte final: Ver cuántos fallos de página ocurrieron
+        memory.printStatistics();
+        
+        scheduler.shutdown();
+        System.out.println("Sistema detenido. Forzando cierre de hilos restantes...");
+        System.exit(0);
+    }
+
+    /*
     public static void main(String[] args) throws InterruptedException {
         System.out.println("=== STRESS TEST - 10 PROCESOS ===");
         
@@ -127,6 +211,8 @@ public class App {
             System.out.println("❌ Menos del 80% de procesos completaron");
         }
     }
+    */
+    
     /*public static void main(String[] args) throws InterruptedException {
         System.out.println("=== STRESS TEST - 10 PROCESOS ===");
         
