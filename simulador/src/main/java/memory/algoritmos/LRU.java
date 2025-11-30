@@ -20,13 +20,13 @@ public class LRU implements ReplacementAlgorithm {
     }
 
     @Override
-    public Integer chooseVictimFrame(List<Frame> physicalMemory, Map<String, PageTable> processPageTables) {
+    public Integer chooseVictimFrame(List<Frame> physicalMemory, Map<String, PageTable> processPageTables, String excludeProcessId) {
         Integer victim = null;
         long oldestTime = Long.MAX_VALUE;
 
         for (Frame frame : physicalMemory) {
             if (!frame.isOccupied()) {
-                // Si hay un frame libre, podemos usarlo como long lastAccess = -1Líctima inmediata
+                // Si hay un frame libre, podemos usarlo como víctima inmediata
                 return frame.getId();
             }
 
@@ -45,6 +45,11 @@ public class LRU implements ReplacementAlgorithm {
             // Si no se pudo determinar dueño, elegir este frame directamente
             if (ownerProcess == null || ownerPage == null) {
                 return frame.getId();
+            }
+
+            // Saltar si pertenece al proceso excluido
+            if (excludeProcessId != null && ownerProcess.equals(excludeProcessId)) {
+                continue;
             }
 
             // Obtener timestamp (0 si nunca fue accedida)

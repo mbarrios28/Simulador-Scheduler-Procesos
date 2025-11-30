@@ -89,7 +89,7 @@ public class Optimo implements ReplacementAlgorithm {
 	}
 
 	@Override
-	public Integer chooseVictimFrame(List<Frame> physicalMemory, Map<String, PageTable> processPageTables) {
+	public Integer chooseVictimFrame(List<Frame> physicalMemory, Map<String, PageTable> processPageTables, String excludeProcessId) {
 		if (physicalMemory == null || physicalMemory.isEmpty())
 			return null;
 
@@ -120,6 +120,11 @@ public class Optimo implements ReplacementAlgorithm {
 			// Si no podemos determinar dueño, elegir este por seguridad
 			if (ownerPid == null || ownerPage == null) {
 				return frame.getId();
+			}
+
+			// Saltar si pertenece al proceso excluido
+			if (excludeProcessId != null && ownerPid.equals(excludeProcessId)) {
+				continue;
 			}
 
 			int dist = nextUseDistance(ownerPid, ownerPage);

@@ -10,10 +10,12 @@ public interface ReplacementAlgorithm {
      * Elige el frame víctima a reemplazar cuando la memoria está llena.
      * @param physicalMemory Lista de todos los frames físicos
      * @param processPageTables Mapa de tablas de páginas por proceso
+     * @param excludeProcessId ID del proceso que NO debe ser víctima (evita auto-reemplazo)
      * @return ID del frame a liberar, o null si no hay víctima disponible
      */
     Integer chooseVictimFrame(List<Frame> physicalMemory, 
-                              Map<String, PageTable> processPageTables);
+                              Map<String, PageTable> processPageTables,
+                              String excludeProcessId);
     
     /**
      * Notifica al algoritmo que una página fue cargada en memoria.

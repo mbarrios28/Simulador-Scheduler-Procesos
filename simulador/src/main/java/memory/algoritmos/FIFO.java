@@ -15,9 +15,25 @@ public class FIFO implements ReplacementAlgorithm {
     }
 
     @Override
-    public Integer chooseVictimFrame(List<Frame> phsycalMemory, Map<String, PageTable> processPageTables) {
-        // Elige el frame que lleva más tiempo en memoria (el primero en la cola)
-        return frameQueue.peek(); // solo mira el primero sin removerlo
+    public Integer chooseVictimFrame(List<Frame> physicalMemory, Map<String, PageTable> processPageTables, String excludeProcessId) {
+        // Elige el frame que lleva más tiempo en memoria, evitando el proceso excludeProcessId
+        for (Integer frameId : frameQueue) {
+            // Verificar si este frame pertenece al proceso excluido
+            boolean belongsToExcluded = false;
+            if (excludeProcessId != null) {
+                PageTable pt = processPageTables.get(excludeProcessId);
+                if (pt != null && pt.findPageInFrame(frameId) != null) {
+                    belongsToExcluded = true;
+                }
+            }
+            
+            if (!belongsToExcluded) {
+                return frameId; // Retorna el primer frame que no es del proceso excluido
+            }
+        }
+        
+        // Si todos los frames son del proceso excluido, retornar null
+        return null;
     }
 
     @Override

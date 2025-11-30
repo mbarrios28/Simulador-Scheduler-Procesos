@@ -78,8 +78,8 @@ public class MemoryManager {
                 pageFaultCount.put(processId, pageFaultCount.getOrDefault(processId, 0) + 1);
 
                 if (freeFrames.isEmpty()) {
-                    // REEMPLAZO
-                    Integer victimFrameId = replacementAlgorithm.chooseVictimFrame(physicalMemory, processPageTables);
+                    // REEMPLAZO (evitando expulsar del mismo proceso)
+                    Integer victimFrameId = replacementAlgorithm.chooseVictimFrame(physicalMemory, processPageTables, processId);
 
                     if (victimFrameId == null) {
                         System.out.println("ERROR: No se pudo elegir víctima para reemplazo");
