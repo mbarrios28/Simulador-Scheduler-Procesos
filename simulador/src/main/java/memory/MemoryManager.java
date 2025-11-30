@@ -273,7 +273,7 @@ public class MemoryManager {
             syncManager.releaseGlobalLock();
         }
     }
-
+    // libera la memoria de un proceso cuando termina
     public void releaseProcessMemory(String processId) {
         syncManager.acquireGlobalLock();
         try {
