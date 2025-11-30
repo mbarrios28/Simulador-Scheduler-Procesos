@@ -225,8 +225,8 @@ public class MemoryManager {
         }
     }
 
-    // --- INTEGRACIÓN: Método ensurePages ---
-    public int ensurePages(Process process) {
+    //  Total Loading 
+    public boolean ensurePages(Process process) {
         String pid = process.getPID();
         int totalPages = process.getPages();
 
@@ -243,16 +243,9 @@ public class MemoryManager {
             createProcess(pid, totalPages);
         }
 
-        // 2. Calcular página necesaria
-        int paginaNecesaria = (process.getCpu_usage() / 3) % totalPages;
-
-        // 3. Verificar si está cargada
-        if (isPageLoaded(pid, paginaNecesaria)) {
-            replacementAlgorithm.onPageAccess(pid, paginaNecesaria);
-            return -1;
-        }
-
-        return paginaNecesaria;
+        // 2. Cargar todas las páginas (con reemplazo si es necesario)
+        // loadAllPages ya verifica qué páginas faltan
+        return loadAllPages(pid);
     }
 
     public boolean loadAllPages(String processId) {
@@ -269,7 +262,7 @@ public class MemoryManager {
                 if (!isPageLoaded(processId, i)) {
                     boolean success = loadPage(processId, i);
                     if (!success) {
-                        return false; 
+                        return false;
                     }
                 }
             }
@@ -280,4 +273,54 @@ public class MemoryManager {
             syncManager.releaseGlobalLock();
         }
     }
+
+    public void releaseProcessMemory(String processId) {
+        syncManager.acquireGlobalLock();
+        try {
+            PageTable pt = processPageTables.get(processId);
+            if (pt == null)
+                return;
+
+            int totalPages = pt.getTotalPages();
+
+            // Liberar todas las páginas
+            for (int i = 0; i < totalPages; i++) {
+                if (pt.isPageLoaded(i)) {
+                    int frameId = pt.getEntry(i).getFrameNumber();
+                    Frame frame = physicalMemory.get(frameId);
+
+                    // Notificar al algoritmo
+                    replacementAlgorithm.onPageUnloaded(processId, i, frameId);
+
+                    // Liberar frame
+                    frame.free();
+                    freeFrames.add(frame);
+
+                    // Actualizar tabla de páginas
+                    pt.pageUnloaded(i);
+                }
+            }
+
+            System.out.println("Memoria liberada para proceso " + processId);
+        } finally {
+            syncManager.releaseGlobalLock();
+        }
+    }
+
+    public boolean canLoadAllPages(String processId) {
+        syncManager.acquireGlobalLock();
+        try {
+            PageTable pt = processPageTables.get(processId);
+            if (pt == null)
+                return false;
+
+            int needed = pt.getTotalPages();
+            int available = freeFrames.size();
+
+            return available >= needed;
+        } finally {
+            syncManager.releaseGlobalLock();
+        }
+    }
+
 }

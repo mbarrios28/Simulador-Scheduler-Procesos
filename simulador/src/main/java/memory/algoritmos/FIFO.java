@@ -27,8 +27,8 @@ public class FIFO implements ReplacementAlgorithm {
 
      @Override
     public void onPageUnloaded(String processId, int pageNumber, int frameId) {
-        // Remover el frame de la cola (debería ser el primero)
-        frameQueue.poll();
+        // Remover el frame específico de la cola
+        frameQueue.remove(frameId);
     }
 
     @Override
