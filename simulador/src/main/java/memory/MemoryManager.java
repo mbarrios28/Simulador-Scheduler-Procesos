@@ -17,7 +17,6 @@ public class MemoryManager {
     private ReplacementAlgorithm replacementAlgorithm;
     private SyncManager syncManager;
 
-    // Contadores de estadística
     private Map<String, Integer> pageFaultCount;
     private Map<String, Integer> replacementCount;
 
@@ -72,7 +71,6 @@ public class MemoryManager {
         try {
             syncManager.acquireProcessLock(processId);
             try {
-                // Si ya está cargado solo notificar acceso
                 if (isPageLoaded(processId, pageNumber)) {
                     System.out.println("Página " + pageNumber + " del proceso " + processId + " ya está en memoria.");
                     replacementAlgorithm.onPageAccess(processId, pageNumber);
@@ -83,7 +81,6 @@ public class MemoryManager {
                 pageFaultCount.put(processId, pageFaultCount.getOrDefault(processId, 0) + 1);
 
                 if (freeFrames.isEmpty()) {
-                    // REEMPLAZO (evitando expulsar del mismo proceso)
                     Integer victimFrameId = replacementAlgorithm.chooseVictimFrame(physicalMemory, processPageTables, processId);
 
                     if (victimFrameId == null) {
@@ -236,7 +233,6 @@ public class MemoryManager {
 
         System.out.println("[MemoryManager-DEBUG] ensurePages INICIO para: " + pid);
 
-        // 1. Asegurar tabla de procesos
         boolean exists;
         syncManager.acquireGlobalLock();
         try {
@@ -250,7 +246,7 @@ public class MemoryManager {
             System.out.println("[MemoryManager-DEBUG] Creando proceso: " + pid);
             createProcess(pid, totalPages);
             
-            // *** VERIFICAR INMEDIATAMENTE DESPUÉS DE CREAR ***
+            // Verificacion despues de la creacion
             syncManager.acquireGlobalLock();
             try {
                 boolean existsAfterCreate = processPageTables.containsKey(pid);
@@ -260,7 +256,7 @@ public class MemoryManager {
             }
         }
 
-        // 2. Cargar todas las páginas
+        // Cargado de todas las páginas
         System.out.println("[MemoryManager-DEBUG] Llamando loadAllPages para: " + pid);
         boolean result = loadAllPages(pid);
         System.out.println("[MemoryManager-DEBUG] ensurePages RESULTADO para " + pid + ": " + result);
@@ -285,7 +281,7 @@ public class MemoryManager {
             int totalPages = pt.getTotalPages();
             System.out.println("[MemoryManager-DEBUG] Total páginas a cargar: " + totalPages);
 
-            // Intentar cargar todas las páginas
+            // bucle para el intento de cargado de todas las páginas
             for (int i = 0; i < totalPages; i++) {
                 if (!isPageLoaded(processId, i)) {
                     System.out.println("[MemoryManager-DEBUG] Cargando página " + i + " para " + processId);
@@ -305,7 +301,7 @@ public class MemoryManager {
             syncManager.releaseGlobalLock();
         }
     }
-    // libera la memoria de un proceso cuando termina
+    
     public void releaseProcessMemory(String processId) {
         syncManager.acquireGlobalLock();
         try {

@@ -24,22 +24,21 @@ public class App {
 
         Scheduler scheduler = new Scheduler();
 
-        // --- 1. CONFIGURACIÓN MEMORIA LIMITADA ---
+        // CONFIGURACIÓN MEMORIA LIMITADA
         MemoryManager memory = new MemoryManager(7, new FIFO()); 
         scheduler.setMemoryManager(memory);
 
-        // Cambiamos a PRIORITY para ver el efecto de las prioridades
+        // Configuracion en PRIORITY para ver el efecto de las prioridades
         scheduler.setAlgorithm(Scheduler.Algorithm.PRIORITY);
 
-        // --- DEFINICIÓN DE PROCESOS CON DIFERENTES PRIORIDADES ---
-        // Menor número = Mayor prioridad (0 es la más alta)
+        // Procesos pruea
         Process p1 = new Process("P1", 0, createBursts(8, 2, 4), 2, 3);   // Prioridad Media (2)
         Process p2 = new Process("P2", 2, createBursts(6, 3, 3), 1, 3);   // Prioridad Alta (1) - llega en T=2
         Process p3 = new Process("P3", 4, createBursts(4, 1, 2), 0, 3);   // Prioridad MÁXIMA (0) - llega en T=4
         Process p4 = new Process("P4", 6, createBursts(10, 2, 5), 3, 3);  // Prioridad Baja (3) - llega en T=6
 
-        // NOTA: Memoria total requerida = P1(6) + P2(5) + P3(4) + P4(3) = 18 páginas
-        // Memoria disponible: 7 marcos → ¡Fuerte competencia y fallos de página garantizados!
+        // Memoria total requerida = P1(6) + P2(5) + P3(4) + P4(3) = 18 páginas
+        // Memoria disponible: 7 marcos esto genera una fuerte competencia y fallos de página garantizados
 
         ArrayList<Process> incoming = new ArrayList<>();
         incoming.add(p1);
@@ -52,11 +51,11 @@ public class App {
         boolean trabajoPendiente = true;
         int maxCiclos = 50; 
         
-        // --- 3. BUCLE DE SIMULACIÓN ---
+        // BUCLE DE SIMULACIÓN
         while ((trabajoPendiente || !incoming.isEmpty()) && maxCiclos > 0) {
             int tiempoActual = scheduler.getTiempoGlobal();
             
-            // Simular Llegadas
+            //Llegadas
             for (int i = 0; i < incoming.size(); i++) {
                 Process p = incoming.get(i);
                 if (p.getT_arrival() <= tiempoActual) {
@@ -67,10 +66,10 @@ public class App {
                 }
             }
 
-            // Ejecutar un ciclo del SO
+            // ciclo del sistema operativo
             trabajoPendiente = scheduler.runOneUnit();
             
-            // Pausa para poder leer los logs en tiempo real
+            // Pausa para ooder hacer la lectura
             Thread.sleep(600); 
             maxCiclos--;
         }
