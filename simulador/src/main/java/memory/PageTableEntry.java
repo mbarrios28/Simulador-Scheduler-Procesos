@@ -1,9 +1,9 @@
 package memory;
 
 public class PageTableEntry {
-    private int pageNumber;     // pagina virtual que representa
-    private int frameNumber;    // marco físico donde está (-1 si no en RAM)
-    private boolean present;    // está en memoria?
+    private int pageNumber;     
+    private int frameNumber;   // aqui es-1 si no en RAM
+    private boolean present;    
     
     public PageTableEntry(int pageNumber) {
         this.pageNumber = pageNumber;

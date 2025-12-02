@@ -8,7 +8,7 @@ import java.util.Map;
 
 
 public class FIFO implements ReplacementAlgorithm {
-    private Queue<Integer> frameQueue; // cola de frames en orden de carga
+    private Queue<Integer> frameQueue; 
 
     public FIFO() {
         this.frameQueue = new LinkedList<>();
@@ -16,9 +16,8 @@ public class FIFO implements ReplacementAlgorithm {
 
     @Override
     public Integer chooseVictimFrame(List<Frame> physicalMemory, Map<String, PageTable> processPageTables, String excludeProcessId) {
-        // Elige el frame que lleva más tiempo en memoria, evitando el proceso excludeProcessId
         for (Integer frameId : frameQueue) {
-            // Verificar si este frame pertenece al proceso excluido
+            // el frame pertenece al proceso excluido?
             boolean belongsToExcluded = false;
             if (excludeProcessId != null) {
                 PageTable pt = processPageTables.get(excludeProcessId);
@@ -28,11 +27,10 @@ public class FIFO implements ReplacementAlgorithm {
             }
             
             if (!belongsToExcluded) {
-                return frameId; // Retorna el primer frame que no es del proceso excluido
+                return frameId;
             }
         }
         
-        // Si todos los frames son del proceso excluido, retornar null
         return null;
     }
 
@@ -43,13 +41,12 @@ public class FIFO implements ReplacementAlgorithm {
 
      @Override
     public void onPageUnloaded(String processId, int pageNumber, int frameId) {
-        // Remover el frame específico de la cola
+        // para el frame específico de la cola
         frameQueue.remove(frameId);
     }
 
     @Override
     public void onPageAccess(String processId, int pageNumber) {
-        // FIFO no necesita saber sobre accesos
     }
   
     @Override

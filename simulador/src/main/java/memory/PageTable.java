@@ -12,9 +12,8 @@ public class PageTable {
         this.totalPages = totalPages;
         this.entries = new ArrayList<>();
         
-        // Cada entrada en la lista representa una página
         for (int i = 0; i < totalPages; i++) {
-            entries.add(new PageTableEntry(i));  // El indice es el numero de página
+            entries.add(new PageTableEntry(i));  
         }
     }
 
@@ -55,12 +54,11 @@ public class PageTable {
         }
     }
 
-    // Encontrar que pagina está en un marco específico
     public Integer findPageInFrame(int frameNumber) {
         for (int i = 0; i < totalPages; i++) {
             PageTableEntry entry = entries.get(i);
             if (entry.isPresent() && entry.getFrameNumber() == frameNumber) {
-                return i;  // retorna el numero de pagina
+                return i; 
             }
         }
         return null;

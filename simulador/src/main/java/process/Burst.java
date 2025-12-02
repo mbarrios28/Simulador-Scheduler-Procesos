@@ -1,9 +1,9 @@
 package process;
 
 public class Burst {
-    private final BurstResource resource; //CPU O E/S
-    private final int time_total; //Tiempo de la rafaga
-    private int time_remaining; //Tiempo que le falta para terminar la rafaga, útil en Round Robin
+    private final BurstResource resource; 
+    private final int time_total; 
+    private int time_remaining; 
     
     public Burst (BurstResource resource, int time){
         this.resource = resource;

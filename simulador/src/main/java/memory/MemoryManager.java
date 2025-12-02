@@ -173,7 +173,7 @@ public class MemoryManager {
     public void printMemoryStatus() {
         syncManager.acquireGlobalLock();
         try {
-            System.out.println("\n=== MEMORY STATUS ===");
+            System.out.println("\nMEMORY STATUS:");
             for (Frame frame : physicalMemory) {
                 if (frame.isOccupied()) {
                     System.out.println("Frame " + frame.getId() + ": Ocupado");
@@ -190,7 +190,7 @@ public class MemoryManager {
     public void printAllPageTables() {
         syncManager.acquireGlobalLock();
         try {
-            System.out.println("\n=== ALL PAGE TABLES ===");
+            System.out.println("\nALL PAGE TABLES:");
             for (String processId : processPageTables.keySet()) {
                 syncManager.acquireProcessLock(processId);
                 try {
@@ -216,7 +216,7 @@ public class MemoryManager {
     public void printStatistics() {
         syncManager.acquireGlobalLock();
         try {
-            System.out.println("\n=== ESTADÍSTICAS DE MEMORIA ===");
+            System.out.println("\nESTADÍSTICAS DE MEMORIA:");
             System.out.println("Algoritmo: " + replacementAlgorithm.getName());
             for (String pid : processPageTables.keySet()) {
                 System.out.println(pid + " - Fallos: " + getPageFaults(pid) +
@@ -246,7 +246,6 @@ public class MemoryManager {
             System.out.println("[MemoryManager-DEBUG] Creando proceso: " + pid);
             createProcess(pid, totalPages);
             
-            // Verificacion despues de la creacion
             syncManager.acquireGlobalLock();
             try {
                 boolean existsAfterCreate = processPageTables.containsKey(pid);
@@ -256,7 +255,6 @@ public class MemoryManager {
             }
         }
 
-        // Cargado de todas las páginas
         System.out.println("[MemoryManager-DEBUG] Llamando loadAllPages para: " + pid);
         boolean result = loadAllPages(pid);
         System.out.println("[MemoryManager-DEBUG] ensurePages RESULTADO para " + pid + ": " + result);
@@ -281,7 +279,6 @@ public class MemoryManager {
             int totalPages = pt.getTotalPages();
             System.out.println("[MemoryManager-DEBUG] Total páginas a cargar: " + totalPages);
 
-            // bucle para el intento de cargado de todas las páginas
             for (int i = 0; i < totalPages; i++) {
                 if (!isPageLoaded(processId, i)) {
                     System.out.println("[MemoryManager-DEBUG] Cargando página " + i + " para " + processId);
@@ -311,20 +308,16 @@ public class MemoryManager {
 
             int totalPages = pt.getTotalPages();
 
-            // Liberar todas las páginas
             for (int i = 0; i < totalPages; i++) {
                 if (pt.isPageLoaded(i)) {
                     int frameId = pt.getEntry(i).getFrameNumber();
                     Frame frame = physicalMemory.get(frameId);
 
-                    // Notificar al algoritmo
                     replacementAlgorithm.onPageUnloaded(processId, i, frameId);
 
-                    // Liberar frame
                     frame.free();
                     freeFrames.add(frame);
 
-                    // Actualizar tabla de páginas
                     pt.pageUnloaded(i);
                 }
             }
