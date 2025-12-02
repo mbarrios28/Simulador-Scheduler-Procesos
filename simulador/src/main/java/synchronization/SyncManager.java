@@ -6,7 +6,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.Condition;
 
 public class SyncManager {
-    // Inicialización estática thread-safe
     private static final SyncManager INSTANCE = new SyncManager();
     
     private final Lock globalMutex;
@@ -24,7 +23,6 @@ public class SyncManager {
         return INSTANCE;
     }
 
-    // Lock global para operaciones críticas
     public void acquireGlobalLock() {
         globalMutex.lock();
     }
@@ -33,7 +31,6 @@ public class SyncManager {
         globalMutex.unlock();
     }
 
-    // Locks por proceso
     public void acquireProcessLock(String pid) {
         ProcessLock lock = processLocks.computeIfAbsent(pid, k -> new ProcessLock());
         lock.acquire();
@@ -45,39 +42,29 @@ public class SyncManager {
             lock.release();
         }
     }
-
-    // Condiciones para despertar procesos
     public Condition getProcessCondition(String pid) {
         return processConditions.computeIfAbsent(pid, k -> globalMutex.newCondition());
     }
 
-    // Método para esperar en una condición
     public void awaitProcessCondition(String pid) throws InterruptedException {
         Condition condition = getProcessCondition(pid);
         condition.await();
     }
-
-    // Método para señalar a un proceso
     public void signalProcess(String pid) {
         Condition condition = processConditions.get(pid);
         if (condition != null) {
             condition.signal();
         }
     }
-
-    // Método para señalar a todos los procesos
     public void signalAllProcesses() {
         processConditions.values().forEach(Condition::signalAll);
     }
-
-    // Limpiar recursos cuando un proceso termina
     public void cleanupProcess(String pid) {
         processLocks.remove(pid);
         processConditions.remove(pid);
         System.out.println("[SyncManager] Limpiados recursos para: " + pid);
     }
 
-    // Clase interna para lock de proceso
     private static class ProcessLock {
         private final Lock lock;
         private int holdCount;

@@ -17,19 +17,17 @@ public class IOManager {
     private SyncManager syncManager;
     private MemoryManager memoryManager;
     
-    // CLASE INTERNA CON TIMING CORREGIDO
     private class IOCounter {
-        int totalCycles;           // Duración total en ciclos
-        int startConsumeCycle;     // Primer ciclo que consume (currentCycle + 1)
-        int availableAtCycle;      // Ciclo en que estará disponible
+        int totalCycles;           
+        int startConsumeCycle;     
+        int availableAtCycle;      
         ProcessThread thread;
         Process process;
-        String operationType;      // "IO", "PAGE_FAULT", "FULL_LOAD"
-        Integer pageNumber;        // Solo para PAGE_FAULT
+        String operationType;      
+        Integer pageNumber;        
         MemoryManager memoryManager;
         
-        IOCounter(int duration, int currentCycle, ProcessThread thread, Process process,
-                 String operationType, Integer pageNumber, MemoryManager memoryManager) {
+        IOCounter(int duration, int currentCycle, ProcessThread thread, Process process, String operationType, Integer pageNumber, MemoryManager memoryManager) {
             this.totalCycles = duration;
             this.startConsumeCycle = currentCycle + 1;  // ¡IMPORTANTE: +1!
             this.availableAtCycle = this.startConsumeCycle + duration;
@@ -40,43 +38,38 @@ public class IOManager {
             this.memoryManager = memoryManager;
             
             System.out.println("[IOManager-TIMING] " + process.getPID() + 
-                             " - Operación: " + operationType +
-                             ", Creado en: T=" + currentCycle +
-                             ", Consume desde: T=" + startConsumeCycle +
-                             ", Duración: " + duration +
-                             ", Disponible: T=" + availableAtCycle);
+                " - Operación: " + operationType +
+                ", Creado en: T=" + currentCycle +
+                ", Consume desde: T=" + startConsumeCycle +
+                ", Duración: " + duration +
+                ", Disponible: T=" + availableAtCycle);
         }
         
-        // Ciclos ya consumidos
         int getConsumedCycles(int currentCycle) {
             if (currentCycle < startConsumeCycle) {
-                return 0;  // Aún no empezó a consumir
+                return 0;  
             }
             int cycles = currentCycle - startConsumeCycle;
             return Math.min(totalCycles, cycles);
         }
         
-        // Ciclos restantes por consumir
         int getRemainingCycles(int currentCycle) {
             if (currentCycle < startConsumeCycle) {
-                return totalCycles;  // Aún no empezó
+                return totalCycles;  
             }
             return Math.max(0, availableAtCycle - currentCycle);
         }
         
-        // Progreso (0.0 a 1.0)
         float getProgress(int currentCycle) {
             if (totalCycles == 0) return 1.0f;
             int consumed = getConsumedCycles(currentCycle);
             return Math.min(1.0f, (float) consumed / totalCycles);
         }
         
-        // ¿Debe completarse? (currentCycle >= availableAtCycle)
         boolean shouldComplete(int currentCycle) {
             return currentCycle >= availableAtCycle;
         }
         
-        // Estado para debug
         String getStatus(int currentCycle) {
             if (currentCycle < startConsumeCycle) {
                 return "ESPERANDO (inicia en T=" + startConsumeCycle + ")";
@@ -86,8 +79,7 @@ public class IOManager {
                 int consumed = getConsumedCycles(currentCycle);
                 int remaining = getRemainingCycles(currentCycle);
                 float progress = getProgress(currentCycle) * 100;
-                return String.format("EN PROGRESO (%d/%d ciclos, %.1f%%, restan: %d)", 
-                                   consumed, totalCycles, progress, remaining);
+                return String.format("EN PROGRESO (%d/%d ciclos, %.1f%%, restan: %d)", consumed, totalCycles, progress, remaining);
             }
         }
     }
@@ -104,12 +96,10 @@ public class IOManager {
         System.out.println("[IOManager] MemoryManager configurado");
     }
     
-    // --- OBTENER CICLO ACTUAL DEL SCHEDULER ---
     private int getCurrentCycle() {
         return scheduler.getCurrentCycle();
     }
     
-    // --- E/S REGULAR ---
     public void startIOOperation(Process process, int duration, ProcessThread thread) {
         String pid = process.getPID();
         int currentCycle = getCurrentCycle();
@@ -122,13 +112,12 @@ public class IOManager {
             }
             
             System.out.println("[IOManager] INICIANDO E/S para " + pid + 
-                             " - Creado en: T=" + currentCycle +
-                             ", Consume desde: T=" + (currentCycle + 1) +
-                             ", Duración: " + duration +
-                             ", Disponible: T=" + (currentCycle + 1 + duration));
+                " - Creado en: T=" + currentCycle +
+                ", Consume desde: T=" + (currentCycle + 1) +
+                ", Duración: " + duration +
+                ", Disponible: T=" + (currentCycle + 1 + duration));
             
-            IOCounter counter = new IOCounter(duration, currentCycle, thread, process,
-                            "IO", null, null);
+            IOCounter counter = new IOCounter(duration, currentCycle, thread, process,                            "IO", null, null);
             
             ioCounters.put(pid + "_IO", counter);
             process.setState(ProcessState.BLOCKED_IO);
@@ -138,7 +127,6 @@ public class IOManager {
         }
     }
     
-    // --- FALLO DE PÁGINA ---
     public void startPageFault(Process process, int pageNumber, MemoryManager memory, ProcessThread thread) {
         String pid = process.getPID();
         int currentCycle = getCurrentCycle();
@@ -149,15 +137,15 @@ public class IOManager {
             return;
         }
         
-        int faultDuration = 1; // 1 ciclo por fallo de página
+        int faultDuration = 1;
         
         syncManager.acquireProcessLock(pid);
         try {
             System.out.println("[IOManager-PF] PAGE FAULT: " + pid + 
-                             " - Página: " + pageNumber +
-                             ", Creado en: T=" + currentCycle +
-                             ", Consume desde: T=" + (currentCycle + 1) +
-                             ", Disponible: T=" + (currentCycle + 1 + faultDuration));
+                " - Página: " + pageNumber +
+                ", Creado en: T=" + currentCycle +
+                ", Consume desde: T=" + (currentCycle + 1) +
+                ", Disponible: T=" + (currentCycle + 1 + faultDuration));
             
             IOCounter counter = new IOCounter(faultDuration, currentCycle, thread, process,
                             "PAGE_FAULT", pageNumber, mm);
@@ -175,7 +163,6 @@ public class IOManager {
         }
     }
     
-    // --- FALLO DE CARGA COMPLETA ---
     public void startFullLoadFault(Process process, MemoryManager memory, ProcessThread thread) {
         String pid = process.getPID();
         int currentCycle = getCurrentCycle();
@@ -191,10 +178,10 @@ public class IOManager {
         syncManager.acquireProcessLock(pid);
         try {
             System.out.println("[IOManager-MEM] FULL LOAD: " + pid + 
-                             " - Páginas: " + process.getPages() +
-                             ", Creado en: T=" + currentCycle +
-                             ", Consume desde: T=" + (currentCycle + 1) +
-                             ", Disponible: T=" + (currentCycle + 1 + loadDuration));
+                " - Páginas: " + process.getPages() +
+                ", Creado en: T=" + currentCycle +
+                ", Consume desde: T=" + (currentCycle + 1) +
+                ", Disponible: T=" + (currentCycle + 1 + loadDuration));
             
             IOCounter counter = new IOCounter(loadDuration, currentCycle, thread, process,
                             "FULL_LOAD", null, mm);
@@ -212,7 +199,6 @@ public class IOManager {
         }
     }
     
-    // --- PROCESAR OPERACIONES COMPLETADAS ---
     public void processCompletedIO() {
         if (ioCounters.isEmpty()) {
             return;
@@ -221,8 +207,7 @@ public class IOManager {
         int currentCycle = getCurrentCycle();
         List<String> completed = new ArrayList<>();
         
-        System.out.println("[IOManager-CHECK] T=" + currentCycle + " - Verificando " + 
-                         ioCounters.size() + " operaciones:");
+        System.out.println("[IOManager-CHECK] T=" + currentCycle + " - Verificando " + ioCounters.size() + " operaciones:");
         
         for (Map.Entry<String, IOCounter> entry : ioCounters.entrySet()) {
             String operationId = entry.getKey();
@@ -234,12 +219,11 @@ public class IOManager {
             if (counter.shouldComplete(currentCycle)) {
                 completed.add(operationId);
                 System.out.println("[IOManager] ¡" + counter.operationType + 
-                                 " DISPONIBLE para " + counter.process.getPID() + 
-                                 " en T=" + currentCycle + "!");
+                    " DISPONIBLE para " + counter.process.getPID() + 
+                    " en T=" + currentCycle + "!");
             }
         }
         
-        // COMPLETAR LAS QUE TERMINARON
         for (String operationId : completed) {
             IOCounter counter = ioCounters.remove(operationId);
             if (counter != null) {
@@ -248,16 +232,14 @@ public class IOManager {
         }
     }
     
-    // --- COMPLETAR OPERACIÓN ---
     private void completeOperation(IOCounter counter) {
         String pid = counter.process.getPID();
         int currentCycle = getCurrentCycle();
         
-        System.out.println("\n[IOManager] === " + counter.operationType + 
-                         " COMPLETADO para " + pid + " ===");
+        System.out.println("\n[IOManager] === " + counter.operationType + " COMPLETADO para " + pid + " ===");
         System.out.println("[IOManager-TIMING] Creado: T=" + (counter.startConsumeCycle - 1) +
-                         ", Consumió: T=" + counter.startConsumeCycle + " a T=" + (counter.availableAtCycle - 1) +
-                         ", Disponible: T=" + currentCycle);
+            ", Consumió: T=" + counter.startConsumeCycle + " a T=" + (counter.availableAtCycle - 1) +
+            ", Disponible: T=" + currentCycle);
         
         syncManager.acquireProcessLock(pid);
         try {
@@ -272,8 +254,7 @@ public class IOManager {
                     completeFullLoad(counter);
                     break;
                 default:
-                    System.err.println("[IOManager-ERROR] Tipo desconocido: " + 
-                                     counter.operationType);
+                    System.err.println("[IOManager-ERROR] Tipo desconocido: " + counter.operationType);
                     counter.process.setState(ProcessState.READY);
                     if (counter.thread != null) {
                         scheduler.addProcessThread(counter.thread);
@@ -313,8 +294,7 @@ public class IOManager {
         MemoryManager mm = counter.memoryManager;
         
         if (mm != null && counter.pageNumber != null) {
-            System.out.println("[IOManager-PF] Cargando página " + counter.pageNumber + 
-                             " para " + p.getPID());
+            System.out.println("[IOManager-PF] Cargando página " + counter.pageNumber + " para " + p.getPID());
             
             boolean success = mm.loadPage(p.getPID(), counter.pageNumber);
             
@@ -344,8 +324,7 @@ public class IOManager {
         MemoryManager mm = counter.memoryManager;
         
         if (mm != null) {
-            System.out.println("[IOManager-MEM] Cargando " + p.getPages() + 
-                             " páginas de " + p.getPID());
+            System.out.println("[IOManager-MEM] Cargando " + p.getPages() + " páginas de " + p.getPID());
             
             boolean success = mm.ensurePages(p);
             
@@ -370,7 +349,6 @@ public class IOManager {
         }
     }
     
-    // --- MÉTODOS DE CONSULTA ---
     public int getActiveIOOperations() {
         return ioCounters.size();
     }

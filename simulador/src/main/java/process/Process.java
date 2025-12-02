@@ -2,22 +2,19 @@ package process;
 import java.util.ArrayList;
 
 public class Process {
-    // Atributos
-    private String PID; //PID del proceso
-    private int t_arrival; //Segundo en el que llega el proceso
-    private ArrayList <Burst> bursts; //Lista de las rafagas que tiene el proceso
-    private int pages; //Páginas de memoria virtual que necesita el proceso
-    private ProcessState state; //Estado en el que se encuentra el proceso (Nuevo, Listo, Ejecutando, Bloqueado (por memoria o E/S), Terminado)
-    private int ind_burst; //Indice de rafaga actual
-    private int priority; //Prioiridad de un proceso, no todos la usan
+    private String PID; 
+    private int t_arrival; 
+    private ArrayList <Burst> bursts; 
+    private int pages; 
+    private ProcessState state; 
+    private int ind_burst; 
+    private int priority; 
     
-    //Métricas
     private int t_start = -1;
     private int t_finish;
     private int t_wait;
     private int cpu_usage;
 
-    //Constructores
     public Process(String PID, int t_arrival, ArrayList<Burst> bursts, int pages) {
         this.PID = PID;
         this.bursts = bursts;
@@ -38,7 +35,6 @@ public class Process {
         this.state = ProcessState.NEW;
     }
     
-    //Métodos para la gestión del proceso
     public Burst getBurst(){
         return this.bursts.get(this.ind_burst);
     }
@@ -46,12 +42,10 @@ public class Process {
     public void nextBurst() {
         this.ind_burst++;
         
-        // VERIFICAR SI TERMINÓ EL PROCESO
         if (isFinished()) {
             this.state = ProcessState.TERMINATED;
             System.out.println("[Process] " + PID + " - ¡PROCESO COMPLETADO!");
         } else {
-            // SOLO cambiar estado si NO terminó
             if (isCurrentBurstCPU()) {
                 this.state = ProcessState.READY;
             } else {
@@ -73,8 +67,6 @@ public class Process {
     public boolean isFinished(){
         return this.ind_burst >= bursts.size();
     }
-
-    //Setters y getters
 
     public String getPID() {
         return PID;
@@ -135,7 +127,6 @@ public class Process {
         this.t_wait = t_wait;
     }
 
-    //toString()
     @Override
     public String toString() {
 

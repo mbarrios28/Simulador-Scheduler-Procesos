@@ -1,7 +1,6 @@
 package ProcessThread;
 
 
- //Representa una ráfaga de CPU o E/S
 
 public class Burst {
     private BurstType type;
@@ -14,7 +13,6 @@ public class Burst {
         this.remainingTime = duration;
     }
     
-    // Getters y setters
     public BurstType getType() { return type; }
     public int getDuration() { return duration; }
     public int getRemainingTime() { return remainingTime; }

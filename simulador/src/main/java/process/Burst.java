@@ -4,14 +4,13 @@ public class Burst {
     private final BurstResource resource; 
     private final int time_total; 
     private int time_remaining; 
-    
+
     public Burst (BurstResource resource, int time){
         this.resource = resource;
         this.time_total = time;
         this.time_remaining = time;
     }
 
-    //Métodos útiles para poder controlar los burst
     public boolean isValid(){
         return time_total > 0;
     }
