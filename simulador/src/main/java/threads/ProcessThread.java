@@ -1,9 +1,9 @@
 package threads;
 
-import process.Process;
-import process.ProcessState;
 import process.Burst;
 import process.BurstResource;
+import process.Process;
+import process.ProcessState;
 import synchronization.SyncManager;
 
 public class ProcessThread extends Thread {
@@ -51,28 +51,30 @@ public class ProcessThread extends Thread {
     private void executeOneUnit() {
         syncManager.acquireProcessLock(process.getPID());
         try {
+            // Si el proceso está bloqueado, no hacer nada
+            if (process.getState() == ProcessState.BLOCKED_IO || 
+                process.getState() == ProcessState.BLOCKED_MEM) {
+                System.out.println("[ProcessThread] " + process.getPID() + 
+                                " está bloqueado (" + process.getState() + "), no ejecuta");
+                burstCompleted = true;
+                return;
+            }
+            
             if (process.getState() == ProcessState.TERMINATED) {
                 System.out.println("[ProcessThread] " + process.getPID() + " ya terminó");
                 burstCompleted = true;
                 return;
             }
             
-            // CASO 1: Iniciar E/S programada
-            if (shouldStartIO) {
-                startIOOperation();
-                shouldStartIO = false;
-                return;
-            }
-            
-            // CASO 2: Verificar si el proceso terminó
+            // Verificar si el proceso terminó
             if (process.isFinished()) {
-                System.out.println("[ProcessThread]  " + process.getPID() + " TERMINÓ (no hay más ráfagas)");
+                System.out.println("[ProcessThread]  " + process.getPID() + " TERMINÓ");
                 process.setState(ProcessState.TERMINATED);
                 burstCompleted = true;
                 return;
             }
             
-            // CASO 3: Ejecución normal
+            // Ejecución normal
             Burst currentBurst = process.getBurst();
             if (currentBurst == null) {
                 System.out.println("[ProcessThread]  " + process.getPID() + " no tiene ráfaga actual");
@@ -81,16 +83,26 @@ public class ProcessThread extends Thread {
             }
             
             System.out.println("[ProcessThread] " + process.getPID() + 
-                             " - Ráfaga: " + currentBurst.getResource() + 
-                             "(" + currentBurst.getTime_remaining() + "/" + 
-                             currentBurst.getTime_total() + "), Estado: " + process.getState());
+                            " - Ráfaga: " + currentBurst.getResource() + 
+                            "(" + currentBurst.getTime_remaining() + "/" + 
+                            currentBurst.getTime_total() + "), Estado: " + process.getState());
             
             if (currentBurst.getResource() == BurstResource.CPU) {
-                executeCPUUnit(currentBurst);
+                // Solo ejecutar CPU si el proceso está READY o RUNNING
+                if (process.getState() == ProcessState.READY || 
+                    process.getState() == ProcessState.RUNNING) {
+                    executeCPUUnit(currentBurst);
+                } else {
+                    System.out.println("[ProcessThread] " + process.getPID() + 
+                                    " no puede ejecutar CPU en estado: " + process.getState());
+                    burstCompleted = true;
+                }
             } else if (currentBurst.getResource() == BurstResource.IO) {
-                System.out.println("[ProcessThread]  " + process.getPID() + 
-                                 " tiene ráfaga E/S en estado: " + process.getState());
-                startIOOperation();
+                // Este caso NO debería ocurrir aquí
+                // El scheduler inicia E/S antes de que el proceso tenga ráfaga IO
+                System.out.println("[ProcessThread-WARN] " + process.getPID() + 
+                                " tiene ráfaga IO en executeOneUnit() - Estado incorrecto");
+                burstCompleted = true;
             }
         } finally {
             syncManager.releaseProcessLock(process.getPID());
@@ -100,38 +112,28 @@ public class ProcessThread extends Thread {
     private void executeCPUUnit(Burst currentBurst) {
         process.setState(ProcessState.RUNNING);
         
-        // Ejecutar 1 unidad de CPU
         currentBurst.consumirUnidad();
         process.setCpu_usage(process.getCpu_usage() + 1);
         
         System.out.println("[ProcessThread] " + process.getPID() + 
-                         " ejecutó CPU. Restante: " + currentBurst.getTime_remaining());
+                        " ejecutó CPU. Restante: " + currentBurst.getTime_remaining());
         
         if (currentBurst.isFinished()) {
             System.out.println("[ProcessThread] " + process.getPID() + " COMPLETÓ ráfaga CPU");
             
-            // Pasar a la siguiente ráfaga
+            // Guardar si esta era la última ráfaga ANTES de avanzar
+            boolean wasLastBurst = (process.getInd_burst() == process.getBursts().size() - 1);
+            
+            // Avanzar a siguiente ráfaga
             process.nextBurst();
+            burstCompleted = true;
             
-            // Verificar si el proceso terminó
-            if (process.getState() == ProcessState.TERMINATED) {
-                System.out.println("[ProcessThread]  " + process.getPID() + " TERMINÓ completamente");
-                burstCompleted = true;
-                return;
-            }
+            // DEBUG
+            System.out.println("[ProcessThread-DEBUG] " + process.getPID() + 
+                            " - ¿Era última ráfaga?: " + wasLastBurst +
+                            ", Estado después: " + process.getState());
             
-            // Verificar si la siguiente ráfaga es E/S
-            Burst nextBurst = process.getBurst();
-            if (nextBurst != null && nextBurst.getResource() == BurstResource.IO) {
-                System.out.println("[ProcessThread]  " + process.getPID() + 
-                                 " siguiente ráfaga es E/S, programando inicio...");
-                shouldStartIO = true;
-                burstCompleted = true;
-            } else {
-                burstCompleted = true;
-            }
         } else {
-            // No completó, necesita más ciclos
             burstCompleted = false;
         }
     }
@@ -140,23 +142,30 @@ public class ProcessThread extends Thread {
         // Verificar si el proceso terminó antes de iniciar E/S
         if (process.isFinished() || process.getState() == ProcessState.TERMINATED) {
             System.out.println("[ProcessThread]  " + process.getPID() + 
-                             " - Proceso terminó, no se inicia E/S");
+                            " - Proceso terminó, no se inicia E/S");
             burstCompleted = true;
             return;
         }
         
         Burst ioBurst = process.getBurst();
         if (ioBurst != null && ioBurst.getResource() == BurstResource.IO) {
+            // SOLUCIÓN: CONSUMIR LA UNIDAD DE E/S
             System.out.println("[ProcessThread]  " + process.getPID() + 
-                             " INICIANDO E/S - Duración: " + ioBurst.getTime_total());
+                            " INICIANDO E/S - Duración: " + ioBurst.getTime_total() + " unidades");
             
+            // Cambiar estado a BLOCKED_IO
+            process.setState(ProcessState.BLOCKED_IO);
+            
+            // Programar la E/S en IOManager
             ioManager.startIOOperation(process, ioBurst.getTime_total(), this);
             burstCompleted = true;
             
-            System.out.println("[ProcessThread]  " + process.getPID() + " - E/S iniciada");
+            System.out.println("[ProcessThread]  " + process.getPID() + 
+                            " - E/S iniciada, estado: BLOCKED_IO por " + 
+                            ioBurst.getTime_total() + " ciclos");
         } else {
             System.out.println("[ProcessThread] " + process.getPID() + 
-                             " - No hay ráfaga E/S válida");
+                            " - No hay ráfaga E/S válida");
             burstCompleted = true;
         }
     }
@@ -168,10 +177,6 @@ public class ProcessThread extends Thread {
             burstCompleted = false;
             executionLock.notify();
         }
-    }
-    
-    public void scheduleIOStart() {
-        this.shouldStartIO = true;
     }
     
     public Process getProcess() {
@@ -192,10 +197,6 @@ public class ProcessThread extends Thread {
     
     public boolean isBlockedByIO() {
         return process.getState() == ProcessState.BLOCKED_IO;
-    }
-    
-    public boolean shouldStartIO() {
-        return shouldStartIO;
     }
     
     public void terminate() {

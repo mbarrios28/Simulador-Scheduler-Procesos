@@ -43,13 +43,16 @@ public class Process {
         return this.bursts.get(this.ind_burst);
     }
 
-    public void nextBurst(){
+    public void nextBurst() {
         this.ind_burst++;
-        //Verificamos si terminó el proceso
-        if (isFinished()){
+        
+        // VERIFICAR SI TERMINÓ EL PROCESO
+        if (isFinished()) {
             this.state = ProcessState.TERMINATED;
+            System.out.println("[Process] " + PID + " - ¡PROCESO COMPLETADO!");
         } else {
-            if (isCurrentBurstCPU()){
+            // SOLO cambiar estado si NO terminó
+            if (isCurrentBurstCPU()) {
                 this.state = ProcessState.READY;
             } else {
                 this.state = ProcessState.BLOCKED_IO;
@@ -150,6 +153,10 @@ public class Process {
         resultado += "}";
 
         return resultado;
+    }
+
+    public int getInd_burst() {
+        return ind_burst;
     }
 
 

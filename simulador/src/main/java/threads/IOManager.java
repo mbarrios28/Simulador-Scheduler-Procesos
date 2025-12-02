@@ -1,10 +1,9 @@
 package threads;
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import memory.MemoryManager;
 import process.Process;
@@ -13,157 +12,391 @@ import scheduler.Scheduler;
 import synchronization.SyncManager;
 
 public class IOManager {
-    private final ScheduledExecutorService ioExecutor;
-    private final ConcurrentHashMap<String, ScheduledFuture<?>> ioOperations;
+    private final Map<String, IOCounter> ioCounters;
     private Scheduler scheduler;
     private SyncManager syncManager;
+    private MemoryManager memoryManager;
+    
+    // CLASE INTERNA CON TIMING CORREGIDO
+    private class IOCounter {
+        int totalCycles;           // Duración total en ciclos
+        int startConsumeCycle;     // Primer ciclo que consume (currentCycle + 1)
+        int availableAtCycle;      // Ciclo en que estará disponible
+        ProcessThread thread;
+        Process process;
+        String operationType;      // "IO", "PAGE_FAULT", "FULL_LOAD"
+        Integer pageNumber;        // Solo para PAGE_FAULT
+        MemoryManager memoryManager;
+        
+        IOCounter(int duration, int currentCycle, ProcessThread thread, Process process,
+                 String operationType, Integer pageNumber, MemoryManager memoryManager) {
+            this.totalCycles = duration;
+            this.startConsumeCycle = currentCycle + 1;  // ¡IMPORTANTE: +1!
+            this.availableAtCycle = this.startConsumeCycle + duration;
+            this.thread = thread;
+            this.process = process;
+            this.operationType = operationType;
+            this.pageNumber = pageNumber;
+            this.memoryManager = memoryManager;
+            
+            System.out.println("[IOManager-TIMING] " + process.getPID() + 
+                             " - Operación: " + operationType +
+                             ", Creado en: T=" + currentCycle +
+                             ", Consume desde: T=" + startConsumeCycle +
+                             ", Duración: " + duration +
+                             ", Disponible: T=" + availableAtCycle);
+        }
+        
+        // Ciclos ya consumidos
+        int getConsumedCycles(int currentCycle) {
+            if (currentCycle < startConsumeCycle) {
+                return 0;  // Aún no empezó a consumir
+            }
+            int cycles = currentCycle - startConsumeCycle;
+            return Math.min(totalCycles, cycles);
+        }
+        
+        // Ciclos restantes por consumir
+        int getRemainingCycles(int currentCycle) {
+            if (currentCycle < startConsumeCycle) {
+                return totalCycles;  // Aún no empezó
+            }
+            return Math.max(0, availableAtCycle - currentCycle);
+        }
+        
+        // Progreso (0.0 a 1.0)
+        float getProgress(int currentCycle) {
+            if (totalCycles == 0) return 1.0f;
+            int consumed = getConsumedCycles(currentCycle);
+            return Math.min(1.0f, (float) consumed / totalCycles);
+        }
+        
+        // ¿Debe completarse? (currentCycle >= availableAtCycle)
+        boolean shouldComplete(int currentCycle) {
+            return currentCycle >= availableAtCycle;
+        }
+        
+        // Estado para debug
+        String getStatus(int currentCycle) {
+            if (currentCycle < startConsumeCycle) {
+                return "ESPERANDO (inicia en T=" + startConsumeCycle + ")";
+            } else if (currentCycle >= availableAtCycle) {
+                return "COMPLETADO (listo desde T=" + availableAtCycle + ")";
+            } else {
+                int consumed = getConsumedCycles(currentCycle);
+                int remaining = getRemainingCycles(currentCycle);
+                float progress = getProgress(currentCycle) * 100;
+                return String.format("EN PROGRESO (%d/%d ciclos, %.1f%%, restan: %d)", 
+                                   consumed, totalCycles, progress, remaining);
+            }
+        }
+    }
     
     public IOManager(Scheduler scheduler) {
         this.scheduler = scheduler;
         this.syncManager = SyncManager.getInstance();
-        this.ioExecutor = Executors.newScheduledThreadPool(4); 
-        this.ioOperations = new ConcurrentHashMap<>();
-        System.out.println("[IOManager] IOManager inicializado");
+        this.ioCounters = new HashMap<>();
+        System.out.println("[IOManager] IOManager inicializado (timing corregido: +1 ciclo)");
+    }
+    
+    public void setMemoryManager(MemoryManager memoryManager) {
+        this.memoryManager = memoryManager;
+        System.out.println("[IOManager] MemoryManager configurado");
+    }
+    
+    // --- OBTENER CICLO ACTUAL DEL SCHEDULER ---
+    private int getCurrentCycle() {
+        return scheduler.getCurrentCycle();
     }
     
     // --- E/S REGULAR ---
     public void startIOOperation(Process process, int duration, ProcessThread thread) {
         String pid = process.getPID();
+        int currentCycle = getCurrentCycle();
         
         syncManager.acquireProcessLock(pid);
         try {
+            if (ioCounters.containsKey(pid + "_IO")) {
+                System.out.println("[IOManager-WARN] " + pid + " ya está en E/S");
+                return;
+            }
+            
             System.out.println("[IOManager] INICIANDO E/S para " + pid + 
-                               " - Duración: " + duration + " unidades");
+                             " - Creado en: T=" + currentCycle +
+                             ", Consume desde: T=" + (currentCycle + 1) +
+                             ", Duración: " + duration +
+                             ", Disponible: T=" + (currentCycle + 1 + duration));
             
-            ScheduledFuture<?> future = ioExecutor.schedule(() -> {
-                System.out.println("[IOManager] Timer E/S expirado para " + pid);
-                completeIOOperation(process, thread);
-            }, duration * 1000L, TimeUnit.MILLISECONDS);
+            IOCounter counter = new IOCounter(duration, currentCycle, thread, process,
+                            "IO", null, null);
             
-            ioOperations.put(pid, future);
+            ioCounters.put(pid + "_IO", counter);
             process.setState(ProcessState.BLOCKED_IO);
             
-            System.out.println("[IOManager] E/S activas: " + ioOperations.size());
         } finally {
             syncManager.releaseProcessLock(pid);
         }
     }
     
-    private void completeIOOperation(Process process, ProcessThread thread) {
-        String pid = process.getPID();
-        System.out.println("[IOManager] E/S COMPLETADA para " + pid);
-        
-        syncManager.acquireProcessLock(pid);
-        try {
-            System.out.println("[IOManager] Avanzando a siguiente ráfaga de " + pid);
-            process.nextBurst();
-            
-            if (process.getState() == ProcessState.TERMINATED) {
-                System.out.println("[IOManager] " + pid + " TERMINÓ después de E/S");
-            } else {
-                process.setState(ProcessState.READY);
-                System.out.println("[IOManager] " + pid + " reactivado a READY");
-                scheduler.addProcessThread(thread);
-            }
-        } finally {
-            syncManager.releaseProcessLock(pid);
-        }
-        
-        ioOperations.remove(pid);
-        System.out.println("[IOManager] E/S activas restantes: " + ioOperations.size());
-    }
-
-    // --- NUEVO: GESTIÓN DE FALLOS DE PÁGINA (PAGE FAULT) ---
+    // --- FALLO DE PÁGINA ---
     public void startPageFault(Process process, int pageNumber, MemoryManager memory, ProcessThread thread) {
         String pid = process.getPID();
-        int delay = 0; 
+        int currentCycle = getCurrentCycle();
+        
+        MemoryManager mm = (this.memoryManager != null) ? this.memoryManager : memory;
+        if (mm == null) {
+            System.err.println("[IOManager-ERROR] No hay MemoryManager para fallo de página");
+            return;
+        }
+        
+        int faultDuration = 1; // 1 ciclo por fallo de página
         
         syncManager.acquireProcessLock(pid);
         try {
-            System.out.println("[IOManager-Swap] PAGE FAULT: Recuperando Pagina " + pageNumber + " para " + pid);
+            System.out.println("[IOManager-PF] PAGE FAULT: " + pid + 
+                             " - Página: " + pageNumber +
+                             ", Creado en: T=" + currentCycle +
+                             ", Consume desde: T=" + (currentCycle + 1) +
+                             ", Disponible: T=" + (currentCycle + 1 + faultDuration));
             
-            ScheduledFuture<?> future = ioExecutor.schedule(() -> {
-                boolean success = memory.loadPage(pid, pageNumber);
-                
-                if (success) {
-                    System.out.println("[IOManager-Swap] Pagina cargada. Desbloqueando " + pid);
-                    
-                    syncManager.acquireProcessLock(pid);
-                    try {
-                        process.setState(ProcessState.READY);
-                        scheduler.addProcessThread(thread);
-                    } finally {
-                        syncManager.releaseProcessLock(pid);
-                    }
-                } else {
-                    System.err.println("[IOManager] Error crítico de memoria para " + pid);
-                    process.setState(ProcessState.TERMINATED);
-                }
-                ioOperations.remove(pid + "_PF");
-                
-            }, delay * 1000L, TimeUnit.MILLISECONDS);
+            IOCounter counter = new IOCounter(faultDuration, currentCycle, thread, process,
+                            "PAGE_FAULT", pageNumber, mm);
             
-            ioOperations.put(pid + "_PF", future);
+            ioCounters.put(pid + "_PF", counter);
             
-            try { process.setState(ProcessState.valueOf("BLOCKED_MEM")); } 
-            catch (Exception e) { process.setState(ProcessState.BLOCKED_IO); }
+            try {
+                process.setState(ProcessState.valueOf("BLOCKED_MEM"));
+            } catch (Exception e) {
+                process.setState(ProcessState.BLOCKED_IO);
+            }
             
         } finally {
             syncManager.releaseProcessLock(pid);
         }
     }
     
-    public int getActiveIOOperations() { return ioOperations.size(); }
-    public boolean hasActiveIO() { return !ioOperations.isEmpty(); }
-    
-    public void shutdown() {
-        ioExecutor.shutdownNow();
-        System.out.println("[IOManager] Apagado");
-    }
-    // --- NUEVO: FALLO DE MEMORIA CON CARGA TOTAL ---
+    // --- FALLO DE CARGA COMPLETA ---
     public void startFullLoadFault(Process process, MemoryManager memory, ProcessThread thread) {
         String pid = process.getPID();
-
-        // Tiempo total simulado para cargar todas las páginas
-        // Puedes cambiarlo: por ejemplo = process.getPages()
-        int delay = 0; // 1 segundo para simular carga completa
-
+        int currentCycle = getCurrentCycle();
+        
+        MemoryManager mm = (this.memoryManager != null) ? this.memoryManager : memory;
+        if (mm == null) {
+            System.err.println("[IOManager-ERROR] No hay MemoryManager para carga completa");
+            return;
+        }
+        
+        int loadDuration = Math.max(1, process.getPages()); // 1 ciclo por página
+        
         syncManager.acquireProcessLock(pid);
         try {
-            System.out.println("[IOManager-MEM] FULL LOAD FAULT: Cargando TODAS las páginas de " + pid);
-
-            // Programar la "carga"
-            ScheduledFuture<?> future = ioExecutor.schedule(() -> {
-
-                boolean loaded = memory.ensurePages(process);
-
-                syncManager.acquireProcessLock(pid);
-                try {
-                    if (loaded) {
-                        System.out.println("[IOManager-MEM] Carga completa finalizada para " + pid);
-                        process.setState(ProcessState.READY);
-                        scheduler.addProcessThread(thread);
-                    } else {
-                        System.err.println("[IOManager-MEM] Error crítico: no se pudo cargar la memoria de " + pid);
-                        process.setState(ProcessState.TERMINATED);
-                    }
-                } finally {
-                    syncManager.releaseProcessLock(pid);
-                }
-
-                ioOperations.remove(pid + "_FULL");
-
-            }, delay * 1000L, TimeUnit.MILLISECONDS);
-
-            ioOperations.put(pid + "_FULL", future);
-
-            // Estado mientras se carga memo completa
-            try { process.setState(ProcessState.valueOf("BLOCKED_MEM")); }
-            catch (Exception e) { process.setState(ProcessState.BLOCKED_IO); }
-
+            System.out.println("[IOManager-MEM] FULL LOAD: " + pid + 
+                             " - Páginas: " + process.getPages() +
+                             ", Creado en: T=" + currentCycle +
+                             ", Consume desde: T=" + (currentCycle + 1) +
+                             ", Disponible: T=" + (currentCycle + 1 + loadDuration));
+            
+            IOCounter counter = new IOCounter(loadDuration, currentCycle, thread, process,
+                            "FULL_LOAD", null, mm);
+            
+            ioCounters.put(pid + "_FULL", counter);
+            
+            try {
+                process.setState(ProcessState.valueOf("BLOCKED_MEM"));
+            } catch (Exception e) {
+                process.setState(ProcessState.BLOCKED_IO);
+            }
+            
         } finally {
             syncManager.releaseProcessLock(pid);
         }
     }
-
+    
+    // --- PROCESAR OPERACIONES COMPLETADAS ---
+    public void processCompletedIO() {
+        if (ioCounters.isEmpty()) {
+            return;
+        }
+        
+        int currentCycle = getCurrentCycle();
+        List<String> completed = new ArrayList<>();
+        
+        System.out.println("[IOManager-CHECK] T=" + currentCycle + " - Verificando " + 
+                         ioCounters.size() + " operaciones:");
+        
+        for (Map.Entry<String, IOCounter> entry : ioCounters.entrySet()) {
+            String operationId = entry.getKey();
+            IOCounter counter = entry.getValue();
+            
+            String status = counter.getStatus(currentCycle);
+            System.out.println("[IOManager-STATUS] " + operationId + " - " + status);
+            
+            if (counter.shouldComplete(currentCycle)) {
+                completed.add(operationId);
+                System.out.println("[IOManager] ¡" + counter.operationType + 
+                                 " DISPONIBLE para " + counter.process.getPID() + 
+                                 " en T=" + currentCycle + "!");
+            }
+        }
+        
+        // COMPLETAR LAS QUE TERMINARON
+        for (String operationId : completed) {
+            IOCounter counter = ioCounters.remove(operationId);
+            if (counter != null) {
+                completeOperation(counter);
+            }
+        }
+    }
+    
+    // --- COMPLETAR OPERACIÓN ---
+    private void completeOperation(IOCounter counter) {
+        String pid = counter.process.getPID();
+        int currentCycle = getCurrentCycle();
+        
+        System.out.println("\n[IOManager] === " + counter.operationType + 
+                         " COMPLETADO para " + pid + " ===");
+        System.out.println("[IOManager-TIMING] Creado: T=" + (counter.startConsumeCycle - 1) +
+                         ", Consumió: T=" + counter.startConsumeCycle + " a T=" + (counter.availableAtCycle - 1) +
+                         ", Disponible: T=" + currentCycle);
+        
+        syncManager.acquireProcessLock(pid);
+        try {
+            switch (counter.operationType) {
+                case "IO":
+                    completeIO(counter);
+                    break;
+                case "PAGE_FAULT":
+                    completePageFault(counter);
+                    break;
+                case "FULL_LOAD":
+                    completeFullLoad(counter);
+                    break;
+                default:
+                    System.err.println("[IOManager-ERROR] Tipo desconocido: " + 
+                                     counter.operationType);
+                    counter.process.setState(ProcessState.READY);
+                    if (counter.thread != null) {
+                        scheduler.addProcessThread(counter.thread);
+                    }
+            }
+            
+        } catch (Exception e) {
+            System.err.println("[IOManager-ERROR] Error completando operación: " + e.getMessage());
+            e.printStackTrace();
+        } finally {
+            syncManager.releaseProcessLock(pid);
+        }
+    }
+    
+    private void completeIO(IOCounter counter) {
+        Process p = counter.process;
+        
+        System.out.println("[IOManager-IO] Avanzando a siguiente ráfaga de " + p.getPID());
+        
+        p.nextBurst();
+        
+        if (p.getState() == ProcessState.TERMINATED) {
+            System.out.println("[IOManager-IO] " + p.getPID() + " TERMINÓ completamente");
+        } else {
+            p.setState(ProcessState.READY);
+            System.out.println("[IOManager-IO] " + p.getPID() + " reactivado a READY");
+            
+            if (counter.thread != null) {
+                scheduler.addProcessThread(counter.thread);
+                System.out.println("[IOManager-IO] " + p.getPID() + " añadido al scheduler");
+            }
+        }
+    }
+    
+    private void completePageFault(IOCounter counter) {
+        Process p = counter.process;
+        MemoryManager mm = counter.memoryManager;
+        
+        if (mm != null && counter.pageNumber != null) {
+            System.out.println("[IOManager-PF] Cargando página " + counter.pageNumber + 
+                             " para " + p.getPID());
+            
+            boolean success = mm.loadPage(p.getPID(), counter.pageNumber);
+            
+            if (success) {
+                System.out.println("[IOManager-PF] Página cargada exitosamente");
+                p.setState(ProcessState.READY);
+                
+                if (counter.thread != null) {
+                    scheduler.addProcessThread(counter.thread);
+                    System.out.println("[IOManager-PF] " + p.getPID() + " reactivado");
+                }
+            } else {
+                System.err.println("[IOManager-PF-ERROR] Fallo al cargar página");
+                p.setState(ProcessState.TERMINATED);
+            }
+        } else {
+            System.err.println("[IOManager-PF-ERROR] Datos incompletos para " + p.getPID());
+            p.setState(ProcessState.READY);
+            if (counter.thread != null) {
+                scheduler.addProcessThread(counter.thread);
+            }
+        }
+    }
+    
+    private void completeFullLoad(IOCounter counter) {
+        Process p = counter.process;
+        MemoryManager mm = counter.memoryManager;
+        
+        if (mm != null) {
+            System.out.println("[IOManager-MEM] Cargando " + p.getPages() + 
+                             " páginas de " + p.getPID());
+            
+            boolean success = mm.ensurePages(p);
+            
+            if (success) {
+                System.out.println("[IOManager-MEM] Carga completa exitosa");
+                p.setState(ProcessState.READY);
+                
+                if (counter.thread != null) {
+                    scheduler.addProcessThread(counter.thread);
+                    System.out.println("[IOManager-MEM] " + p.getPID() + " reactivado");
+                }
+            } else {
+                System.err.println("[IOManager-MEM-ERROR] Fallo en carga completa");
+                p.setState(ProcessState.TERMINATED);
+            }
+        } else {
+            System.err.println("[IOManager-MEM-ERROR] No hay MemoryManager para " + p.getPID());
+            p.setState(ProcessState.READY);
+            if (counter.thread != null) {
+                scheduler.addProcessThread(counter.thread);
+            }
+        }
+    }
+    
+    // --- MÉTODOS DE CONSULTA ---
+    public int getActiveIOOperations() {
+        return ioCounters.size();
+    }
+    
+    public boolean hasActiveIO() {
+        return !ioCounters.isEmpty();
+    }
+    
+    public void printActiveOperations() {
+        if (ioCounters.isEmpty()) {
+            System.out.println("[IOManager] No hay operaciones activas");
+            return;
+        }
+        
+        int currentCycle = getCurrentCycle();
+        System.out.println("\n[IOManager] Operaciones activas (T=" + currentCycle + "):");
+        
+        for (Map.Entry<String, IOCounter> entry : ioCounters.entrySet()) {
+            IOCounter counter = entry.getValue();
+            String status = counter.getStatus(currentCycle);
+            System.out.println("  " + entry.getKey() + ": " + status);
+        }
+    }
+    
+    public void shutdown() {
+        ioCounters.clear();
+        System.out.println("[IOManager] Apagado");
+    }
 }
