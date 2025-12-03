@@ -45,7 +45,67 @@ public class Scheduler {
         this.currentAlgorithm = algo; 
         System.out.println("[Scheduler] Algoritmo cambiado a: " + algo);
     }
+    
     public void setQuantum(int q) { this.quantum = q; }
+
+    // MÉTODOS AGREGADOS PARA EL DISPLAY
+    public Algorithm getCurrentAlgorithm() { 
+        return currentAlgorithm; 
+    }
+    
+    public int getQuantum() { 
+        return quantum; 
+    }
+    
+    public List<Process> getReadyProcesses() {
+        List<Process> ready = new LinkedList<>();
+        synchronized (readyQueue) {
+            for (ProcessThread thread : readyQueue) {
+                if (thread.getProcess() != null && 
+                    thread.getProcess().getState() == ProcessState.READY) {
+                    ready.add(thread.getProcess());
+                }
+            }
+        }
+        return ready;
+    }
+    
+    public Process getCurrentProcess() {
+        if (currentThread != null && currentThread.getProcess() != null) {
+            Process p = currentThread.getProcess();
+            // Solo retornar si realmente está en ejecución
+            if (p.getState() == ProcessState.RUNNING) {
+                return p;
+            }
+        }
+        return null;
+    }
+    
+    /*
+     * Captura el estado del proceso actual ANTES de ejecutar
+     * Retorna información sobre qué proceso va a ejecutar y su ráfaga
+     */
+    public String[] captureCurrentState() {
+        if (currentThread != null && currentThread.getProcess() != null) {
+            Process p = currentThread.getProcess();
+            if (p.getState() == ProcessState.RUNNING && !p.isFinished()) {
+                Burst b = p.getBurst();
+                if (b != null) {
+                    // [0]=PID, [1]=Estado, [2]=TipoRafaga, [3]=Restante, [4]=Total
+                    return new String[] {
+                        p.getPID(),
+                        p.getState().toString(),
+                        b.getResource().toString(),
+                        String.valueOf(b.getTime_remaining()),
+                        String.valueOf(b.getTime_total())
+                    };
+                }
+            }
+        }
+        return null; // No hay proceso ejecutando
+    }
+    
+    // FIN MÉTODOS AGREGADOS
 
     public void addProcess(Process p) {
         syncManager.acquireGlobalLock();
@@ -65,10 +125,14 @@ public class Scheduler {
         return tiempoGlobal;
     }
     
+    // Variable para capturar el estado antes de ejecutar
+    private String[] cycleExecutionSnapshot = null;
+    
     public boolean runOneUnit() {
         System.out.println("\n--- CICLO T=" + tiempoGlobal + " ---");
         
         processesAddedThisCycle = 0;
+        cycleExecutionSnapshot = null; // Resetear snapshot
         
         try { Thread.sleep(5); } catch (InterruptedException e) {}
         
@@ -81,15 +145,15 @@ public class Scheduler {
             dispatchNewProcess();
         }
         
+        // *** CAPTURAR ESTADO AQUÍ: después de dispatch, antes de ejecutar ***
         if (currentThread != null) {
+            cycleExecutionSnapshot = captureCurrentState();
             executeCurrentProcess();
         } else {
             System.out.println("[T=" + tiempoGlobal + "] IDLE");
         }
         
         updateWaitTimes();
-        
-        // chicos, ya no usar advanceIOTimers()poruqe el tiempo avanza automáticamente con tiempoGlobal++
         
         System.out.println("[T=" + tiempoGlobal + "] E/S activas: " + ioManager.getActiveIOOperations());
         
@@ -100,6 +164,14 @@ public class Scheduler {
         tiempoGlobal++;
         
         return !readyQueue.isEmpty() || currentThread != null || ioManager.hasActiveIO();
+    }
+    
+    /**
+     * Obtiene el snapshot capturado durante el último runOneUnit()
+     * Este snapshot contiene el estado del proceso DESPUÉS de dispatch pero ANTES de ejecutar
+     */
+    public String[] getLastExecutionSnapshot() {
+        return cycleExecutionSnapshot;
     }
     
     private void checkAndHandlePreemption() {

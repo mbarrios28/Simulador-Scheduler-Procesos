@@ -38,6 +38,35 @@ public class MemoryManager {
         System.out.println("Memory Manager inicializada con " + totalFrames + " frames.");
     }
 
+    // MÉTODOS AGREGADOS PARA EL DISPLAY
+    public int getTotalFrames() {
+        return physicalMemory.size();
+    }
+    
+    public int getFreeFramesCount() {
+        return freeFrames.size();
+    }
+    
+    public List<Frame> getPhysicalMemory() {
+        return new ArrayList<>(physicalMemory);
+    }
+    
+    public Frame getFrame(int frameId) {
+        if (frameId >= 0 && frameId < physicalMemory.size()) {
+            return physicalMemory.get(frameId);
+        }
+        return null;
+    }
+    
+    public ReplacementAlgorithm getReplacementAlgorithm() {
+        return replacementAlgorithm;
+    }
+    
+    public Map<String, PageTable> getAllPageTables() {
+        return new HashMap<>(processPageTables);
+    }
+    // FIN MÉTODOS AGREGADOS
+
     public void createProcess(String processId, int totalPages) {
         syncManager.acquireGlobalLock();
         try {
@@ -158,13 +187,13 @@ public class MemoryManager {
                 try {
                     Integer pageNumber = entry.getValue().findPageInFrame(frame.getId());
                     if (pageNumber != null) {
-                        return entry.getKey() + "-Page" + pageNumber;
+                        return entry.getKey() + "-P" + pageNumber;
                     }
                 } finally {
                     syncManager.releaseProcessLock(entry.getKey());
                 }
             }
-            return "UNKNOWN-Page";
+            return "UNKNOWN";
         } finally {
             syncManager.releaseGlobalLock();
         }
@@ -343,5 +372,4 @@ public class MemoryManager {
             syncManager.releaseGlobalLock();
         }
     }
-
 }
