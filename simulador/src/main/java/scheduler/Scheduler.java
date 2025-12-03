@@ -154,6 +154,8 @@ public class Scheduler {
         }
         
         updateWaitTimes();
+
+        // chicos, ya no usar advanceIOTimers()poruqe el tiempo avanza automáticamente con tiempoGlobal++
         
         System.out.println("[T=" + tiempoGlobal + "] E/S activas: " + ioManager.getActiveIOOperations());
         
