@@ -18,19 +18,21 @@ public class IOManager {
     private MemoryManager memoryManager;
     
     private class IOCounter {
-        int totalCycles;           
-        int startConsumeCycle;     
-        int availableAtCycle;      
-        ProcessThread thread;
-        Process process;
-        String operationType;      
-        Integer pageNumber;        
-        MemoryManager memoryManager;
-        
-        IOCounter(int duration, int currentCycle, ProcessThread thread, Process process, String operationType, Integer pageNumber, MemoryManager memoryManager) {
+    int totalCycles;           
+    int startConsumeCycle;     
+    int availableAtCycle;      
+    ProcessThread thread;
+    Process process;
+    String operationType;      
+    Integer pageNumber;        
+    MemoryManager memoryManager;
+    
+    IOCounter(int duration, int currentCycle, ProcessThread thread, 
+              Process process, String operationType, Integer pageNumber, 
+              MemoryManager memoryManager) {
             this.totalCycles = duration;
-            this.startConsumeCycle = currentCycle + 1;  // ¡IMPORTANTE: +1!
-            this.availableAtCycle = this.startConsumeCycle + duration;
+            this.startConsumeCycle = currentCycle;  // CAMBIADO: SIN +1
+            this.availableAtCycle = this.startConsumeCycle + duration;  // CAMBIADO
             this.thread = thread;
             this.process = process;
             this.operationType = operationType;
@@ -40,9 +42,9 @@ public class IOManager {
             System.out.println("[IOManager-TIMING] " + process.getPID() + 
                 " - Operación: " + operationType +
                 ", Creado en: T=" + currentCycle +
-                ", Consume desde: T=" + startConsumeCycle +
+                ", Consume desde: T=" + startConsumeCycle +  // CAMBIADO
                 ", Duración: " + duration +
-                ", Disponible: T=" + availableAtCycle);
+                ", Disponible: T=" + availableAtCycle);  // CAMBIADO
         }
         
         int getConsumedCycles(int currentCycle) {
@@ -67,7 +69,7 @@ public class IOManager {
         }
         
         boolean shouldComplete(int currentCycle) {
-            return currentCycle >= availableAtCycle;
+            return currentCycle >= availableAtCycle;  // CAMBIADO: >= en lugar de >
         }
         
         String getStatus(int currentCycle) {
@@ -79,7 +81,8 @@ public class IOManager {
                 int consumed = getConsumedCycles(currentCycle);
                 int remaining = getRemainingCycles(currentCycle);
                 float progress = getProgress(currentCycle) * 100;
-                return String.format("EN PROGRESO (%d/%d ciclos, %.1f%%, restan: %d)", consumed, totalCycles, progress, remaining);
+                return String.format("EN PROGRESO (%d/%d ciclos, %.1f%%, restan: %d)", 
+                    consumed, totalCycles, progress, remaining);
             }
         }
     }
@@ -88,7 +91,7 @@ public class IOManager {
         this.scheduler = scheduler;
         this.syncManager = SyncManager.getInstance();
         this.ioCounters = new HashMap<>();
-        System.out.println("[IOManager] IOManager inicializado (timing corregido: +1 ciclo)");
+        System.out.println("[IOManager] IOManager inicializado");
     }
     
     public void setMemoryManager(MemoryManager memoryManager) {
@@ -113,11 +116,12 @@ public class IOManager {
             
             System.out.println("[IOManager] INICIANDO E/S para " + pid + 
                 " - Creado en: T=" + currentCycle +
-                ", Consume desde: T=" + (currentCycle + 1) +
+                ", Consume desde: T=" + currentCycle +  // CAMBIADO: SIN +1
                 ", Duración: " + duration +
-                ", Disponible: T=" + (currentCycle + 1 + duration));
+                ", Disponible: T=" + (currentCycle + duration));  // CAMBIADO: SIN +1
             
-            IOCounter counter = new IOCounter(duration, currentCycle, thread, process,                            "IO", null, null);
+            IOCounter counter = new IOCounter(duration, currentCycle, thread, process, 
+                                            "IO", null, null);
             
             ioCounters.put(pid + "_IO", counter);
             process.setState(ProcessState.BLOCKED_IO);
@@ -144,8 +148,8 @@ public class IOManager {
             System.out.println("[IOManager-PF] PAGE FAULT: " + pid + 
                 " - Página: " + pageNumber +
                 ", Creado en: T=" + currentCycle +
-                ", Consume desde: T=" + (currentCycle + 1) +
-                ", Disponible: T=" + (currentCycle + 1 + faultDuration));
+                ", Consume desde: T=" + currentCycle +  // CAMBIADO: SIN +1
+                ", Disponible: T=" + (currentCycle + faultDuration));  // CAMBIADO: SIN +1
             
             IOCounter counter = new IOCounter(faultDuration, currentCycle, thread, process,
                             "PAGE_FAULT", pageNumber, mm);
@@ -180,8 +184,8 @@ public class IOManager {
             System.out.println("[IOManager-MEM] FULL LOAD: " + pid + 
                 " - Páginas: " + process.getPages() +
                 ", Creado en: T=" + currentCycle +
-                ", Consume desde: T=" + (currentCycle + 1) +
-                ", Disponible: T=" + (currentCycle + 1 + loadDuration));
+                ", Consume desde: T=" + currentCycle +  // CAMBIADO: SIN +1
+                ", Disponible: T=" + (currentCycle + loadDuration));  // CAMBIADO: SIN +1
             
             IOCounter counter = new IOCounter(loadDuration, currentCycle, thread, process,
                             "FULL_LOAD", null, mm);
@@ -237,7 +241,7 @@ public class IOManager {
         int currentCycle = getCurrentCycle();
         
         System.out.println("\n[IOManager] === " + counter.operationType + " COMPLETADO para " + pid + " ===");
-        System.out.println("[IOManager-TIMING] Creado: T=" + (counter.startConsumeCycle - 1) +
+        System.out.println("[IOManager-TIMING] Creado: T=" + counter.startConsumeCycle +
             ", Consumió: T=" + counter.startConsumeCycle + " a T=" + (counter.availableAtCycle - 1) +
             ", Disponible: T=" + currentCycle);
         

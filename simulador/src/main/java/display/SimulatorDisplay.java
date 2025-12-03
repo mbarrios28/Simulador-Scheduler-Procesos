@@ -87,19 +87,26 @@ public class SimulatorDisplay {
             "─".repeat(47) + "┐" + ANSI_RESET);
         
         // Proceso en Ejecución
-        // stateSnapshot: [0]=PID, [1]=Estado, [2]=TipoRafaga, [3]=Restante, [4]=Total
-        
         if (stateSnapshot != null && stateSnapshot.length >= 5) {
             String pid = stateSnapshot[0];
+            String state = stateSnapshot[1];
             String burstType = stateSnapshot[2];
-            String remaining = stateSnapshot[3];
-            String total = stateSnapshot[4];
             
-            System.out.println(ANSI_GREEN + "  ► EJECUTANDO: " + ANSI_RESET + 
-                ANSI_BOLD + ANSI_GREEN + pid + ANSI_RESET);
-            
-            System.out.println("    └─ Estado: RUNNING, Ráfaga actual: " + burstType +
-                " (" + remaining + "/" + total + " ciclos)");
+            // Si el estado es RUNNING, mostrar como ejecutando
+            if (state.equals("RUNNING")) {
+                String remaining = stateSnapshot[3];
+                String total = stateSnapshot[4];
+                
+                System.out.println(ANSI_GREEN + "  ► EJECUTANDO: " + ANSI_RESET + 
+                    ANSI_BOLD + ANSI_GREEN + pid + ANSI_RESET);
+                
+                System.out.println("    └─ Estado: " + state + ", Ráfaga actual: " + burstType +
+                    " (" + remaining + "/" + total + " ciclos)");
+            } else {
+                // Si no está RUNNING, mostrar IDLE
+                System.out.println(ANSI_GREEN + "  ► EJECUTANDO: " + ANSI_RESET + 
+                    ANSI_RED + "IDLE" + ANSI_RESET);
+            }
         } else {
             System.out.println(ANSI_GREEN + "  ► EJECUTANDO: " + ANSI_RESET + 
                 ANSI_RED + "IDLE (sin procesos)" + ANSI_RESET);

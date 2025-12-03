@@ -1,8 +1,11 @@
 package scheduler;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 import memory.MemoryManager;
 import process.Burst;
@@ -22,6 +25,7 @@ public class Scheduler {
     private IOManager ioManager;
     private MemoryManager memoryManager; 
     private final SyncManager syncManager;
+    private Map<String, ProcessThread> delayedIOStart;
 
     private Algorithm currentAlgorithm = Algorithm.FCFS;
     private int quantum = 2;
@@ -32,6 +36,7 @@ public class Scheduler {
         this.readyQueue = Collections.synchronizedList(new LinkedList<>());
         this.syncManager = SyncManager.getInstance();
         this.ioManager = new IOManager(this);
+        this.delayedIOStart = new HashMap<>(); 
         System.out.println("[Scheduler] Scheduler inicializado");
     }
 
@@ -135,6 +140,8 @@ public class Scheduler {
         cycleExecutionSnapshot = null; // Resetear snapshot
         
         try { Thread.sleep(5); } catch (InterruptedException e) {}
+
+        processDelayedIOOperations();
         
         System.out.println("[Scheduler-TIMING] Procesando operaciones completadas...");
         ioManager.processCompletedIO();
@@ -166,6 +173,43 @@ public class Scheduler {
         tiempoGlobal++;
         
         return !readyQueue.isEmpty() || currentThread != null || ioManager.hasActiveIO();
+    }
+
+    private void processDelayedIOOperations() {
+        if (delayedIOStart.isEmpty()) {
+            return;
+        }
+        
+        List<String> toRemove = new ArrayList<>();
+        
+        for (Map.Entry<String, ProcessThread> entry : delayedIOStart.entrySet()) {
+            String pid = entry.getKey();
+            ProcessThread thread = entry.getValue();
+            Process p = thread.getProcess();
+            
+            if (p != null && p.getState() == ProcessState.READY) {
+                Burst nextBurst = p.getBurst();
+                if (nextBurst != null && nextBurst.getResource() == BurstResource.IO) {
+                    System.out.println(">>> " + p.getPID() + " INICIANDO E/S (" + 
+                                    nextBurst.getTime_total() + " ciclos) <<<");
+                    
+                    syncManager.acquireProcessLock(pid);
+                    try {
+                        p.setState(ProcessState.BLOCKED_IO);
+                        ioManager.startIOOperation(p, nextBurst.getTime_total(), thread);
+                        System.out.println("[Scheduler] E/S iniciada para " + p.getPID());
+                    } finally {
+                        syncManager.releaseProcessLock(pid);
+                    }
+                    
+                    toRemove.add(pid);
+                }
+            }
+        }
+        
+        for (String pid : toRemove) {
+            delayedIOStart.remove(pid);
+        }
     }
     
     /**
@@ -414,19 +458,18 @@ public class Scheduler {
         boolean nextIsIO = (nextBurst.getResource() == BurstResource.IO);
         
         if (nextIsIO) {
-            System.out.println(">>> " + p.getPID() + " INICIANDO E/S (" + 
-                            nextBurst.getTime_total() + " ciclos) <<<");
+            System.out.println(">>> " + p.getPID() + " DEBERÁ INICIAR E/S en T=" + 
+                            (tiempoGlobal + 1) + " (" + nextBurst.getTime_total() + " ciclos) <<<");
             
-            try {
-                p.setState(ProcessState.BLOCKED_IO);
-                ioManager.startIOOperation(p, nextBurst.getTime_total(), currentThread);
-                System.out.println("[Scheduler] E/S iniciada para " + p.getPID());
-                
-            } catch (Exception e) {
-                System.err.println("[Scheduler-ERROR] Error iniciando E/S: " + e.getMessage());
-                p.setState(ProcessState.READY);
-                addProcessThread(currentThread);
-            }
+            // *** CAMBIO IMPORTANTE: No cambiar estado aquí ***
+            // El IO se iniciará en el PRÓXIMO ciclo
+            
+            // Agregar a cola para que se inicie IO en siguiente ciclo
+            delayedIOStart.put(p.getPID(), currentThread);
+            
+            // Mantener READY por ahora (será bloqueado en siguiente ciclo)
+            p.setState(ProcessState.READY);
+            addProcessThread(currentThread);
             
             currentThread = null;
             currentQuantumUsed = 0;
