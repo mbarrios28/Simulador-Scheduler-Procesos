@@ -283,38 +283,47 @@ public class ConfiguracionInicialGUI {
         
         return panel;
     }
-    
+    private File getResourcesDirectory() {
+        File[] posiblesRutas = {
+            new File("../resources"),
+            new File("src/main/resources"),
+            new File("simulador/src/main/resources"),
+            new File("resources")
+        };
+
+        for (File ruta : posiblesRutas) {
+            if (ruta.exists() && ruta.isDirectory()) {
+                return ruta;
+            }
+        }
+        return null;
+    }
+
     private void loadFilesFromResources() {
         fileListModel.clear();
-        
+        fileList.setEnabled(true);
+
+        File resourcesDir = getResourcesDirectory(); 
+
         try {
-            // Para Maven: recursos están en src/main/resources
-            ClassLoader classLoader = getClass().getClassLoader();
-            java.net.URL resourceUrl = classLoader.getResource("");
-            
-            if (resourceUrl != null) {
-                File resourcesDir = new File(resourceUrl.toURI());
-                if (resourcesDir.exists() && resourcesDir.isDirectory()) {
-                    File[] files = resourcesDir.listFiles((dir, name) -> 
-                        name.toLowerCase().endsWith(".txt"));
-                    
-                    if (files != null) {
-                        Arrays.sort(files);
-                        for (File file : files) {
-                            fileListModel.addElement(file.getName());
-                        }
+            if (resourcesDir != null) {
+                File[] files = resourcesDir.listFiles((dir, name) -> name.toLowerCase().endsWith(".txt"));
+
+                if (files != null && files.length > 0) {
+                    Arrays.sort(files);
+                    for (File file : files) {
+                        fileListModel.addElement(file.getName());
                     }
+                } else {
+                    fileListModel.addElement("Carpeta vacía");
+                    fileList.setEnabled(false);
                 }
-            }
-            
-            // Si no se encuentran archivos, mostrar mensaje
-            if (fileListModel.isEmpty()) {
-                fileListModel.addElement("No se encontraron archivos .txt en resources/");
+            } else {
+                fileListModel.addElement("No se halló la carpeta resources.");
                 fileList.setEnabled(false);
             }
-            
         } catch (Exception e) {
-            fileListModel.addElement("Error cargando archivos: " + e.getMessage());
+            fileListModel.addElement("Error: " + e.getMessage());
         }
     }
     
@@ -476,22 +485,43 @@ public class ConfiguracionInicialGUI {
     private void loadProcessesFromFiles(int[] selectedIndices) {
         selectedProcesses.clear();
         
+        // 1. Obtenemos la carpeta correcta
+        File resourcesDir = getResourcesDirectory();
+        
+        if (resourcesDir == null) {
+            JOptionPane.showMessageDialog(frame, "Error crítico: No se encuentra la carpeta de recursos.");
+            return;
+        }
+
         for (int index : selectedIndices) {
             String fileName = fileListModel.get(index);
             
             try {
-                // Usar InputParser para cargar procesos
-                InputParser parser = new InputParser("/" + fileName);
+                // 2. Construimos la referencia al archivo específico
+                File targetFile = new File(resourcesDir, fileName);
+                
+                // Verificamos que exista antes de intentar leerlo
+                if (!targetFile.exists()) {
+                    throw new Exception("El archivo físico no existe en: " + targetFile.getAbsolutePath());
+                }
+
+                // 3. Pasamos la RUTA ABSOLUTA al parser
+                // NOTA: Asumo que tu InputParser acepta un String con la ruta completa.
+                InputParser parser = new InputParser(targetFile.getAbsolutePath());
+                
                 parser.obtenerProcesos();
                 parser.crearProcesos();
                 ArrayList<Process> procesos = parser.get_process();
                 
-                selectedProcesses.addAll(procesos);
-                
-                System.out.println("Cargados " + procesos.size() + 
-                                 " procesos desde " + fileName);
+                if (procesos != null) {
+                    selectedProcesses.addAll(procesos);
+                    System.out.println("Cargados " + procesos.size() + " procesos desde " + fileName);
+                } else {
+                    throw new Exception("El parser devolvió una lista nula de procesos.");
+                }
                 
             } catch (Exception e) {
+                e.printStackTrace(); // Esto imprimirá el error real en la consola de tu IDE
                 JOptionPane.showMessageDialog(frame,
                     "Error cargando " + fileName + ":\n" + e.getMessage(),
                     "Error de Archivo",
