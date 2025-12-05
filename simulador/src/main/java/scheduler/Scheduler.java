@@ -154,25 +154,26 @@ public class Scheduler {
     
     public boolean runOneUnit() {
         System.out.println("\n--- CICLO T=" + tiempoGlobal + " ---");
+        
+        // FASE 1: Finalizar operaciones del ciclo anterior
         checkArrivals();
-        
-        processesAddedThisCycle = 0;
-        cycleExecutionSnapshot = null; // Resetear snapshot
-        
-        try { Thread.sleep(5); } catch (InterruptedException e) {}
-
-        processDelayedIOOperations();
-        
-        System.out.println("[Scheduler-TIMING] Procesando operaciones completadas...");
         ioManager.processCompletedIO();
         
+        // FASE 2: Iniciar nuevas operaciones I/O (de procesos que terminaron CPU en T-1)
+        processDelayedIOOperations();
+        
+        processesAddedThisCycle = 0;
+        cycleExecutionSnapshot = null;
+        
+        try { Thread.sleep(5); } catch (InterruptedException e) {}
+        
+        // FASE 3: Ejecución de CPU en el ciclo actual
         checkAndHandlePreemption();
         
         if (currentThread == null) {
             dispatchNewProcess();
         }
         
-        // *** CAPTURAR ESTADO AQUÍ: después de dispatch, antes de ejecutar ***
         if (currentThread != null) {
             cycleExecutionSnapshot = captureCurrentState();
             executeCurrentProcess();
@@ -181,8 +182,6 @@ public class Scheduler {
         }
         
         updateWaitTimes();
-
-        // chicos, ya no usar advanceIOTimers()poruqe el tiempo avanza automáticamente con tiempoGlobal++
         
         System.out.println("[T=" + tiempoGlobal + "] E/S activas: " + ioManager.getActiveIOOperations());
         
@@ -441,6 +440,16 @@ public class Scheduler {
             return;
         }
         
+        // Verificar si este proceso acaba de terminar un burst de CPU
+        // y el siguiente es I/O - en ese caso NO ejecutar CPU
+        Burst currentBurst = p.getBurst(); // Necesitarás este método
+        if (currentBurst != null && currentBurst.getResource() == BurstResource.IO) {
+            // Este proceso debería iniciar I/O, no ejecutar CPU
+            System.out.println("[EXECUTE] " + p.getPID() + 
+                            " debería iniciar I/O, saltando ejecución CPU");
+            return;
+        }
+        
         currentThread.startExecution();
         try { Thread.sleep(20); } catch (InterruptedException e) {}
         
@@ -460,15 +469,13 @@ public class Scheduler {
         Process p = currentThread.getProcess();
         System.out.println("[T=" + tiempoGlobal + "] " + p.getPID() + " completó ráfaga");
         
-        System.out.println("[DEBUG] " + p.getPID() + 
-                        " - Estado: " + p.getState() +
-                        ", Terminado: " + p.isFinished() +
-                        ", Índice burst: " + p.getInd_burst() +
-                        "/" + p.getBursts().size());
+        // Avanzar al siguiente burst
+        boolean hasNext = p.isFinished(); // Necesitas este método
         
-        if (p.getState() == ProcessState.TERMINATED || p.isFinished()) {
+        if (p.isFinished()) {
             p.setT_finish(tiempoGlobal);
-            System.out.println( p.getPID() + " TERMINADO COMPLETAMENTE ");
+            System.out.println(p.getPID() + " TERMINADO COMPLETAMENTE ");
+            p.setState(ProcessState.TERMINATED);
             currentThread.terminate();
             syncManager.cleanupProcess(p.getPID());
             currentThread = null;
@@ -476,37 +483,28 @@ public class Scheduler {
             return;
         }
         
+        // Obtener el NUEVO burst (el que se acaba de avanzar)
         Burst nextBurst = p.getBurst();
         
-        if (nextBurst == null) {
-            System.err.println("[Scheduler-ERROR] " + p.getPID() + " no tiene siguiente ráfaga");
-            p.setState(ProcessState.READY);
-            addProcessThread(currentThread);
-            currentThread = null;
-            currentQuantumUsed = 0;
-            return;
-        }
-        
-        boolean nextIsIO = (nextBurst.getResource() == BurstResource.IO);
-        
-        if (nextIsIO) {
-            System.out.println(">>> " + p.getPID() + " DEBERÁ INICIAR E/S en T=" + 
+        if (nextBurst.getResource() == BurstResource.IO) {
+            // *** CORRECCIÓN: Marcar para iniciar I/O en el PRÓXIMO ciclo ***
+            System.out.println(">>> " + p.getPID() + " PREPARADO PARA I/O en ciclo T=" + 
                             (tiempoGlobal + 1) + " (" + nextBurst.getTime_total() + " ciclos) <<<");
             
-            // *** CAMBIO IMPORTANTE: No cambiar estado aquí ***
-            // El IO se iniciará en el PRÓXIMO ciclo
+            // Cambiar estado a WAITING_FOR_IO (necesitarás añadir este estado)
+            // O mantener READY pero con una marca especial
+            p.setState(ProcessState.READY);
             
-            // Agregar a cola para que se inicie IO en siguiente ciclo
+            // Agregar a una cola especial de procesos que iniciarán I/O
+            // en el PRÓXIMO ciclo
             delayedIOStart.put(p.getPID(), currentThread);
             
-            // Mantener READY por ahora (será bloqueado en siguiente ciclo)
-            p.setState(ProcessState.READY);
-            addProcessThread(currentThread);
-            
+            // NO agregar a readyQueue normal - irá a blocked en siguiente ciclo
             currentThread = null;
             currentQuantumUsed = 0;
             
         } else {
+            // El siguiente es CPU, volver a ready
             p.setState(ProcessState.READY);
             addProcessThread(currentThread);
             currentThread = null;
