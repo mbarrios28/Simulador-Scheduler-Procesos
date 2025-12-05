@@ -940,8 +940,9 @@ public class SimulatorGUI {
             gbc.gridwidth = 1;
             chartPanel.add(new JLabel("T:"), gbc);
             
+            // CAMBIO PRINCIPAL: Mostrar TODOS los ciclos, no solo hasta 30
             int start = 0;
-            int end = Math.min(currentCycle - 1, 30);
+            int end = currentCycle - 1; // Eliminar el límite de 30
             
             for (int i = start; i <= end; i++) {
                 gbc.gridx = i + 1;
@@ -1041,8 +1042,21 @@ public class SimulatorGUI {
             idleLegend.add(new JLabel("IDLE (sin ejecución)"));
             legendPanel.add(idleLegend);
             
+            // MEJORA: Configurar el JScrollPane con scroll horizontal
             JScrollPane scrollPane = new JScrollPane(chartPanel);
+            
+            // Habilitar scroll horizontal siempre
+            scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_ALWAYS);
+            scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+            
+            // Ajustar tamaño preferido para permitir scroll
             scrollPane.setPreferredSize(new Dimension(800, 150));
+            
+            // OPCIONAL: Posicionar el scroll al final (último ciclo) automáticamente
+            SwingUtilities.invokeLater(() -> {
+                JScrollBar horizontalBar = scrollPane.getHorizontalScrollBar();
+                horizontalBar.setValue(horizontalBar.getMaximum());
+            });
             
             ganttPanel.add(scrollPane, BorderLayout.CENTER);
             ganttPanel.add(legendPanel, BorderLayout.SOUTH);
