@@ -469,9 +469,6 @@ public class Scheduler {
         Process p = currentThread.getProcess();
         System.out.println("[T=" + tiempoGlobal + "] " + p.getPID() + " completó ráfaga");
         
-        // Avanzar al siguiente burst
-        boolean hasNext = p.isFinished(); // Necesitas este método
-        
         if (p.isFinished()) {
             p.setT_finish(tiempoGlobal);
             System.out.println(p.getPID() + " TERMINADO COMPLETAMENTE ");
@@ -483,20 +480,14 @@ public class Scheduler {
             return;
         }
         
-        // Obtener el NUEVO burst (el que se acaba de avanzar)
         Burst nextBurst = p.getBurst();
         
         if (nextBurst.getResource() == BurstResource.IO) {
-            // *** CORRECCIÓN: Marcar para iniciar I/O en el PRÓXIMO ciclo ***
             System.out.println(">>> " + p.getPID() + " PREPARADO PARA I/O en ciclo T=" + 
                             (tiempoGlobal + 1) + " (" + nextBurst.getTime_total() + " ciclos) <<<");
             
-            // Cambiar estado a WAITING_FOR_IO (necesitarás añadir este estado)
-            // O mantener READY pero con una marca especial
             p.setState(ProcessState.READY);
             
-            // Agregar a una cola especial de procesos que iniciarán I/O
-            // en el PRÓXIMO ciclo
             delayedIOStart.put(p.getPID(), currentThread);
             
             // NO agregar a readyQueue normal - irá a blocked en siguiente ciclo
