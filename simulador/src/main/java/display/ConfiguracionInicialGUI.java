@@ -210,14 +210,10 @@ public class ConfiguracionInicialGUI {
         JButton refreshButton = new JButton("Actualizar lista");
         refreshButton.addActionListener(e -> loadFilesFromResources());
         
-        JButton selectAllButton = new JButton("Seleccionar todos");
-        selectAllButton.addActionListener(e -> fileList.setSelectionInterval(0, fileListModel.getSize() - 1));
-        
         JButton clearButton = new JButton("Limpiar selección");
         clearButton.addActionListener(e -> fileList.clearSelection());
         
         fileButtonPanel.add(refreshButton);
-        fileButtonPanel.add(selectAllButton);
         fileButtonPanel.add(clearButton);
         
         topPanel.add(fileButtonPanel, BorderLayout.SOUTH);

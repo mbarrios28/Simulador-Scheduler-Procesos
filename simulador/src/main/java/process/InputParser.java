@@ -21,16 +21,14 @@ public class InputParser {
     public void obtenerProcesos() throws IOException {
         File archivo = new File(filePath);
 
-        // 1. Verificamos que el archivo exista antes de intentar leerlo
         if (!archivo.exists()) {
             throw new IOException("El archivo no existe en la ruta: " + filePath);
         }
 
-        // 2. Usamos FileReader (para archivos físicos) en vez de getResourceAsStream
         try (BufferedReader br = new BufferedReader(new FileReader(archivo))) {
             String line;
             while ((line = br.readLine()) != null) {
-                if (!line.trim().isEmpty()) { // Ignoramos líneas vacías
+                if (!line.trim().isEmpty()) {
                     lineasLeidas.add(line);
                 }
             }
