@@ -26,6 +26,7 @@ public class Scheduler {
     private MemoryManager memoryManager; 
     private final SyncManager syncManager;
     private Map<String, ProcessThread> delayedIOStart;
+    private final List<Process> futureArrivals = new ArrayList<>();
 
     private Algorithm currentAlgorithm = Algorithm.FCFS;
     private int quantum = 2;
@@ -113,21 +114,39 @@ public class Scheduler {
     // FIN MÉTODOS AGREGADOS
 
     public void addProcess(Process p) {
-        syncManager.acquireGlobalLock();
-        try {
-            if (memoryManager != null) {
-                memoryManager.createProcess(p.getPID(), p.getPages());
-            }
-            ProcessThread thread = new ProcessThread(p, this.ioManager);
-            thread.start(); 
-            addProcessThread(thread);
-        } finally {
-            syncManager.releaseGlobalLock();
-        }
+        futureArrivals.add(p);
+        p.setState(ProcessState.NEW);
+
+        System.out.println("[Scheduler] Proceso " + p.getPID() + " registrado con llegada en T=" + p.getT_arrival());
     }
 
     public int getCurrentCycle() {
         return tiempoGlobal;
+    }
+
+    private void checkArrivals() {
+        List<Process> arrived = new ArrayList<>();
+        // Buscar procesos cuyo tiempo de llegada ya ocurrió
+        for (Process p : futureArrivals) {
+            if (p.getT_arrival() <= tiempoGlobal) {
+                arrived.add(p);
+            }
+        }
+        // Moverlos a READY
+        for (Process p : arrived) {
+            // Crear thread solamente ahora
+            ProcessThread thread = new ProcessThread(p, this.ioManager);
+
+            // El thread SOLO empieza cuando el dispatcher lo elija
+            // Marcar proceso como READY
+            p.setState(ProcessState.READY);
+
+            // Agregar a ready queue
+            addProcessThread(thread);
+            System.out.println("[ARRIVAL] " + p.getPID() + " llegó en T=" + tiempoGlobal);
+            // Retirar de lista de futuros
+            futureArrivals.remove(p);
+        }
     }
     
     // Variable para capturar el estado antes de ejecutar
@@ -135,6 +154,7 @@ public class Scheduler {
     
     public boolean runOneUnit() {
         System.out.println("\n--- CICLO T=" + tiempoGlobal + " ---");
+        checkArrivals();
         
         processesAddedThisCycle = 0;
         cycleExecutionSnapshot = null; // Resetear snapshot
@@ -286,33 +306,44 @@ public class Scheduler {
     private void performPreemption(ProcessThread newThread) {
         Process oldProcess = currentThread.getProcess();
         Process newProcess = newThread.getProcess();
-        
+
         System.out.println("[PREEMPT] ¡APROPIACIÓN! " + 
-        newProcess.getPID() + " (prio=" + newProcess.getPriority() + 
-        ") expulsa a " + oldProcess.getPID() + 
-        " (prio=" + oldProcess.getPriority() + ")");
-        
+            newProcess.getPID() + " (prio=" + newProcess.getPriority() + 
+            ") expulsa a " + oldProcess.getPID() + 
+            " (prio=" + oldProcess.getPriority() + ")");
+
+        // 1) Devolver el viejo proceso a READY
         syncManager.acquireProcessLock(oldProcess.getPID());
         try {
             oldProcess.setState(ProcessState.READY);
             synchronized (readyQueue) {
+                // añadir al frente para que sea elegido pronto
                 readyQueue.add(0, currentThread); 
             }
             System.out.println("[PREEMPT] " + oldProcess.getPID() + " vuelto a cola READY");
         } finally {
             syncManager.releaseProcessLock(oldProcess.getPID());
         }
-        
+
+        // 2) Remover newThread de readyQueue si está ahí
         synchronized (readyQueue) {
             if (readyQueue.contains(newThread)) {
                 readyQueue.remove(newThread);
                 System.out.println("[PREEMPT] " + newProcess.getPID() + " removido de cola READY");
             }
         }
-        
+
+        // 3) Asegurarnos de que el hilo del nuevo proceso está arrancado
+        if (!newThread.isAlive()) {
+            newThread.start();
+            System.out.println("[PREEMPT] " + newProcess.getPID() + " hilo iniciado por preemption");
+        }
+
+        // 4) Pasar a ser el hilo actual
         currentThread = newThread;
         currentQuantumUsed = 0;
-        
+
+        // 5) Establecer estado RUNNING y tiempos bajo lock del proceso
         syncManager.acquireProcessLock(newProcess.getPID());
         try {
             if (newProcess.getT_start() == -1) {
@@ -343,6 +374,7 @@ public class Scheduler {
                     selectedThread = selectPriority();
                     break;
                 case FCFS:
+                    break;
                 case RR:
                     selectedThread = readyQueue.remove(0);
                     break;
