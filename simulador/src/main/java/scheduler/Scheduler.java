@@ -373,7 +373,6 @@ public class Scheduler {
                     selectedThread = selectPriority();
                     break;
                 case FCFS:
-                    break;
                 case RR:
                     selectedThread = readyQueue.remove(0);
                     break;
