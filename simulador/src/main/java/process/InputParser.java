@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
 public class InputParser {
 
@@ -49,9 +50,21 @@ public class InputParser {
         // Separamos por espacios en blanco (uno o más)
         String[] partes = linea.trim().split("\\s+");
         Process process;
+        List<Integer> pageSequence = null;
+        
+        // Buscar SEQ[] en la línea
+        int seqIndex = -1;
+        for (int i = 0; i < partes.length; i++) {
+            if (partes[i].startsWith("SEQ[")) {
+                seqIndex = i;
+                pageSequence = parsePageSequence(partes[i]);
+                break;
+            }
+        }
         
         // CASO 1: Formato corto (Sin prioridad explícita)
-        if (partes.length == 4) {
+        // P1 0 CPU(5) 3 [SEQ[...]]
+        if (partes.length == 4 || (partes.length == 5 && seqIndex == 4)) {
             String PID = partes[0];
             int t_arrival = Integer.parseInt(partes[1]);
             String rafagasString = partes[2];
@@ -62,6 +75,7 @@ public class InputParser {
             process = new Process(PID, t_arrival, bursts, pages);
         } 
         // CASO 2: Formato largo (Con prioridad)
+        // P1 0 CPU(5) 1 3 [SEQ[...]]
         else if (partes.length >= 5) {
             String PID = partes[0];
             int t_arrival = Integer.parseInt(partes[1]);
@@ -74,6 +88,12 @@ public class InputParser {
             process = new Process(PID, t_arrival, bursts, priority, pages);
         } else {
             throw new IllegalArgumentException("Formato de línea inválido (faltan datos): " + linea);
+        }
+        
+        // Asignar secuencia si existe
+        if (pageSequence != null) {
+            process.setFuturePageSequence(pageSequence);
+            System.out.println("[InputParser] " + process.getPID() + " cargada con SEQ[] de " + pageSequence.size() + " accesos");
         }
         
         return process;
@@ -110,5 +130,33 @@ public class InputParser {
 
     public ArrayList<Process> get_process() {
         return this.list_process;
+    }
+    
+    private List<Integer> parsePageSequence(String seqString) {
+        try {
+            if (!seqString.startsWith("SEQ[") || !seqString.endsWith("]")) {
+                System.err.println("[InputParser] Formato SEQ[] inválido: " + seqString);
+                return null;
+            }
+            
+            String content = seqString.substring(4, seqString.length() - 1);
+            
+            if (content.trim().isEmpty()) {
+                return new ArrayList<>();
+            }
+            
+            String[] pageStrings = content.split(",");
+            List<Integer> sequence = new ArrayList<>();
+            
+            for (String pageStr : pageStrings) {
+                sequence.add(Integer.parseInt(pageStr.trim()));
+            }
+            
+            return sequence;
+            
+        } catch (Exception e) {
+            System.err.println("[InputParser] Error parseando SEQ[]: " + seqString + " -> " + e.getMessage());
+            return null;
+        }
     }
 }

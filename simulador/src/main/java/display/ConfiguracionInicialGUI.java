@@ -11,6 +11,9 @@ import java.awt.event.ActionListener;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListModel;
@@ -578,8 +581,12 @@ public class ConfiguracionInicialGUI {
             memory = new MemoryManager(frames, new FIFO());
         } else if (selectedMemory.contains("LRU")) {
             memory = new MemoryManager(frames, new LRU());
-        } else if (selectedMemory.contains("Óptimo")) {
-            memory = new MemoryManager(frames, new Optimo());
+        } else if (selectedMemory.contains("Optimal") || selectedMemory.contains("Óptimo")) {
+            memory = createOptimalMemory();
+            if (memory == null) {
+                // Error: faltan secuencias SEQ[], no se puede continuar
+                return;
+            }
         } else {
             memory = new MemoryManager(frames, new FIFO()); // Por defecto
         }
@@ -601,6 +608,54 @@ public class ConfiguracionInicialGUI {
             "Presione 'Iniciar Simulación' para comenzar.",
             "Configuración Completada",
             JOptionPane.INFORMATION_MESSAGE);
+    }
+    
+    private MemoryManager createOptimalMemory() {
+        Map<String, List<Integer>> futureSequences = new HashMap<>();
+        StringBuilder info = new StringBuilder();
+        List<String> missingSequences = new ArrayList<>();
+        
+        for (Process p : selectedProcesses) {
+            List<Integer> sequence = p.getFuturePageSequence();
+            
+            if (sequence != null && !sequence.isEmpty()) {
+                futureSequences.put(p.getPID(), sequence);
+                info.append("✓ ").append(p.getPID()).append(": SEQ[] del archivo (").append(sequence.size()).append(" accesos)\n");
+                System.out.println("[OPTIMAL] " + p.getPID() + " secuencia: " + 
+                                 sequence.subList(0, Math.min(15, sequence.size())) + "...");
+            } else {
+                missingSequences.add(p.getPID());
+            }
+        }
+        
+        // Validar que todos los procesos tengan SEQ[]
+        if (!missingSequences.isEmpty()) {
+            JOptionPane.showMessageDialog(null,
+                "ERROR: Algoritmo Óptimo requiere secuencias SEQ[] para todos los procesos.\n\n" +
+                "Procesos sin SEQ[]:\n" +
+                String.join(", ", missingSequences) + "\n\n" +
+                "Formato requerido en el archivo .txt:\n" +
+                "PID llegada ráfagas prioridad páginas SEQ[p1,p2,p3,...]\n\n" +
+                "Ejemplo:\n" +
+                "P1 0 CPU(8),E/S(2),CPU(4) 1 3 SEQ[0,1,0,1,0,2,0,1]\n\n" +
+                "Por favor, agregue las secuencias SEQ[] o seleccione otro algoritmo.",
+                "Error - Secuencias Faltantes",
+                JOptionPane.ERROR_MESSAGE);
+            return null;
+        }
+        
+        Optimo optimo = new Optimo();
+        optimo.setFutureAccessSequences(futureSequences);
+        
+        JOptionPane.showMessageDialog(null,
+            "✓ Algoritmo Óptimo inicializado\n\n" +
+            "Secuencias configuradas:\n" +
+            info.toString() +
+            "\nTotal: " + selectedProcesses.size() + " procesos",
+            "Óptimo Configurado",
+            JOptionPane.INFORMATION_MESSAGE);
+        
+        return new MemoryManager(frames, optimo);
     }
     
     public void show() {

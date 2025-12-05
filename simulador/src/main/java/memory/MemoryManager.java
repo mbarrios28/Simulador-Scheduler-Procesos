@@ -144,7 +144,7 @@ public class MemoryManager {
                     victimPageTable.pageUnloaded(victimPageNumber);
                     replacementAlgorithm.onPageUnloaded(victimProcessId, victimPageNumber, victimFrameId);
                     targetFrame.free();
-                    replacementCount.put(processId, replacementCount.getOrDefault(processId, 0) + 1);
+                    replacementCount.put(victimProcessId, replacementCount.getOrDefault(victimProcessId, 0) + 1);
 
                 } else {
                     targetFrame = freeFrames.poll();

@@ -48,10 +48,13 @@ public class Optimo implements ReplacementAlgorithm {
 		if (seq == null || seq.isEmpty())
 			return;
 
-		if (seq.get(0).equals(pageNumber)) {
-			seq.remove(0);
+		// Buscar y eliminar la PRIMERA ocurrencia de pageNumber
+		for (int i = 0; i < seq.size(); i++) {
+			if (seq.get(i).equals(pageNumber)) {
+				seq.remove(i);
+				break;
+			}
 		}
-
 	}
 
 	@Override

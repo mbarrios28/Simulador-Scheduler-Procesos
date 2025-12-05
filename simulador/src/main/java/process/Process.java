@@ -1,5 +1,6 @@
 package process;
 import java.util.ArrayList;
+import java.util.List;
 
 public class Process {
     private String PID; 
@@ -14,6 +15,7 @@ public class Process {
     private int t_finish;
     private int t_wait;
     private int cpu_usage;
+    private List<Integer> futurePageSequence; // Secuencia SEQ[] para algoritmo Óptimo
 
     public Process(String PID, int t_arrival, ArrayList<Burst> bursts, int pages) {
         this.PID = PID;
@@ -23,6 +25,7 @@ public class Process {
         this.priority = -1; 
         this.ind_burst = 0;
         this.state = ProcessState.NEW;
+        this.futurePageSequence = null;
     }
 
     public Process(String PID, int t_arrival, ArrayList<Burst> bursts, int priority, int pages) {
@@ -33,6 +36,7 @@ public class Process {
         this.t_arrival = t_arrival;
         this.ind_burst = 0;
         this.state = ProcessState.NEW;
+        this.futurePageSequence = null;
     }
     
     public Burst getBurst(){
@@ -148,6 +152,14 @@ public class Process {
 
     public int getInd_burst() {
         return ind_burst;
+    }
+
+    public List<Integer> getFuturePageSequence() {
+        return futurePageSequence;
+    }
+
+    public void setFuturePageSequence(List<Integer> futurePageSequence) {
+        this.futurePageSequence = futurePageSequence;
     }
 
 
